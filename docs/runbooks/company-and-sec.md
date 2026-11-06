@@ -36,3 +36,11 @@ Unknown amendments suspend matching original candidates and exclude amendment ro
 `parse_downloaded_run(engine, store, run_id)` bridges the durable SEC worklist to versioned ownership storage. Missing downloads or quarantined XML keep parse completeness false. A later parse retry does not create duplicate transaction rows. Operational reads include database recording time so historical source metadata cannot backdate processing knowledge.
 
 The required stratified comparison of at least 50 real filings has **not** been performed. C07 is fixture-tested implementation, not production-validated SEC parsing. [SEC Form 4 instructions](https://www.sec.gov/files/form4.pdf) and [ownership XML specifications](https://www.sec.gov/submit-filings/technical-specifications) are the source contracts to use for that validation.
+
+## Quarterly plan disclosures (C08)
+
+`tailwatch plan-candidates <local-filing.html>` extracts deterministic text passages and action hints. It does not infer insider identities, event dates, or a termination count from keywords. Negative wording and multiple actions remain unknown. The initial extractor accepts UTF-8 text/HTML; other encodings must be handled explicitly before review while retaining the original source.
+
+An analyst supplies a `PlanDisclosure` for the relevant fiscal quarter (including the fourth quarter in a 10-K), with stable event/plan/insider IDs, arrangement type, exact extracted-text passage offsets, actual dates, and review availability. `validate_disclosure` binds every passage to the raw hash and extractor version; it verifies provenance, not the correctness of a human's semantic judgment. `append_disclosure` persists the validated record through the immutable fact store. Only reviewed, validated records should reach `termination_signal`.
+
+The count includes active 10b5-1 terminations, excludes modifications/replacements/expiry/completion, distinguishes an explicitly reviewed no-events report from missing/unknown text, and becomes stale after 180 days. Conflicting current disclosures or uncertain events produce unavailable results. Amended filings require an explicit predecessor with matching quarter; the earlier view cannot see a later amendment. Human review and real-disclosure sampling remain required before production use.

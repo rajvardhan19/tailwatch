@@ -12,6 +12,7 @@ from tailwatch import __version__
 from tailwatch.entities.repository import read_history_fixture
 from tailwatch.sources.policy import inventory, load_manifest
 from tailwatch.sources.sec.form4 import parse_form4
+from tailwatch.sources.sec.plans import plan_candidates
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -27,7 +28,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     form4.add_argument("path", type=Path)
     form4.add_argument("--accession", required=True)
     form4.add_argument("--filed-date", required=True, type=date.fromisoformat)
+    plans = commands.add_parser(
+        "plan-candidates", help="extract passages for manual Item 408 review"
+    )
+    plans.add_argument("path", type=Path)
     args = parser.parse_args(argv)
+    if args.command == "plan-candidates":
+        try:
+            print(
+                json.dumps(
+                    {
+                        "requires_review": True,
+                        "candidates": [
+                            c.model_dump() for c in plan_candidates(args.path.read_bytes())
+                        ],
+                    }
+                )
+            )
+        except (OSError, ValueError) as error:
+            parser.exit(2, f"Invalid disclosure: {error}\n")
     if args.command == "parse-form4":
         try:
             print(
