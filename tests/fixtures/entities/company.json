@@ -1,0 +1,12 @@
+{
+  "kind": "company",
+  "entity_id": "00000000-0000-0000-0000-000000000001",
+  "cik": "0000000001",
+  "periods": [
+    {"start": "2026-01-01T00:00:00Z", "end": "2026-01-10T00:00:00Z",
+     "name": "Synthetic Manufacturing", "sector": "synthetic", "status": "public",
+     "fiscal_year_end": "12-31"},
+    {"start": "2026-01-10T00:00:00Z", "name": "Synthetic Manufacturing Renamed",
+     "sector": "synthetic", "status": "delisted", "fiscal_year_end": "12-31"}
+  ]
+}

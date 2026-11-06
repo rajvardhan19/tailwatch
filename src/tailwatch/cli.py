@@ -9,6 +9,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from tailwatch import __version__
+from tailwatch.entities.repository import read_history_fixture
 from tailwatch.sources.policy import inventory, load_manifest
 
 
@@ -19,7 +20,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     commands.add_parser("fixture", help="show offline fixture mode status (no model scores)")
     source_inventory = commands.add_parser("inventory", help="inspect declared source feasibility")
     source_inventory.add_argument("manifest", type=Path)
+    history = commands.add_parser("validate-history", help="validate dated entity fixture JSON")
+    history.add_argument("path", type=Path)
     args = parser.parse_args(argv)
+    if args.command == "validate-history":
+        try:
+            print(read_history_fixture(args.path).model_dump_json())
+        except (OSError, ValidationError) as error:
+            parser.exit(2, f"Invalid entity history: {error}\n")
     if args.command == "inventory":
         try:
             print(inventory(load_manifest(args.manifest), datetime.now(UTC)))
