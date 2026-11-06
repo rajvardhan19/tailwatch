@@ -1,0 +1,5 @@
+Synthetic fixture, not a real SEC index
+CIK|Company Name|Form Type|Date Filed|Filename
+--------------------------------------------------------------------------------
+1|Synthetic One|4|2026-01-02|edgar/data/1/0000000001-26-000001.txt
+2|Synthetic Two|4/A|2026-01-02|edgar/data/2/0000000002-26-000002.txt

@@ -3,13 +3,16 @@
 import argparse
 import json
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 from pydantic import ValidationError
 
 from tailwatch import __version__
+from tailwatch.entities.repository import read_history_fixture
 from tailwatch.sources.policy import inventory, load_manifest
+from tailwatch.sources.sec.form4 import parse_form4
+from tailwatch.sources.sec.plans import plan_candidates
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -19,7 +22,48 @@ def main(argv: Sequence[str] | None = None) -> int:
     commands.add_parser("fixture", help="show offline fixture mode status (no model scores)")
     source_inventory = commands.add_parser("inventory", help="inspect declared source feasibility")
     source_inventory.add_argument("manifest", type=Path)
+    history = commands.add_parser("validate-history", help="validate dated entity fixture JSON")
+    history.add_argument("path", type=Path)
+    form4 = commands.add_parser("parse-form4", help="extract a local Form 4 XML/SGML file")
+    form4.add_argument("path", type=Path)
+    form4.add_argument("--accession", required=True)
+    form4.add_argument("--filed-date", required=True, type=date.fromisoformat)
+    plans = commands.add_parser(
+        "plan-candidates", help="extract passages for manual Item 408 review"
+    )
+    plans.add_argument("path", type=Path)
     args = parser.parse_args(argv)
+    if args.command == "plan-candidates":
+        try:
+            print(
+                json.dumps(
+                    {
+                        "requires_review": True,
+                        "candidates": [
+                            c.model_dump() for c in plan_candidates(args.path.read_bytes())
+                        ],
+                    }
+                )
+            )
+        except (OSError, ValueError) as error:
+            parser.exit(2, f"Invalid disclosure: {error}\n")
+    if args.command == "parse-form4":
+        try:
+            print(
+                parse_form4(
+                    args.path.read_bytes(),
+                    accession=args.accession,
+                    filed_date=args.filed_date,
+                    available_at=datetime.now(UTC),
+                ).model_dump_json()
+            )
+        except (OSError, ValueError) as error:
+            parser.exit(2, f"Invalid Form 4: {error}\n")
+    if args.command == "validate-history":
+        try:
+            print(read_history_fixture(args.path).model_dump_json())
+        except (OSError, ValidationError) as error:
+            parser.exit(2, f"Invalid entity history: {error}\n")
     if args.command == "inventory":
         try:
             print(inventory(load_manifest(args.manifest), datetime.now(UTC)))

@@ -11,13 +11,14 @@ requires-python = ">=3.11,<3.15"
 dependencies = [
   "psycopg[binary]>=3.2,<4", "pydantic>=2.10,<3",
   "SQLAlchemy>=2.0,<2.1", "alembic>=1.15,<2",
+  "defusedxml>=0.7,<1",
 ]
 
 [project.scripts]
 tailwatch = "tailwatch.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8,<10", "ruff>=0.11,<1", "mypy>=1.15,<2"]
+dev = ["pytest>=8,<10", "ruff>=0.11,<1", "mypy>=1.15,<2", "types-defusedxml>=0.7,<1"]
 
 [tool.ruff]
 target-version = "py311"
