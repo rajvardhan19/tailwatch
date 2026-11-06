@@ -2,7 +2,7 @@
 
 Research project for evidence-linked acquisition signals from corporate aircraft activity, insider disclosures, and company text.
 
-**Status: design and implementation planning.** No working ingestion pipeline, trained model, validated prediction accuracy, or customer alerts exist in this repository yet.
+**Status: offline foundation under construction.** No live ingestion pipeline, trained model, validated prediction accuracy, or customer alerts exist yet.
 
 - [Revised technical blueprint](docs/technical-blueprint.md): implementation contract; supersedes the original design.
 - [Commit-by-commit implementation plan](docs/implementation-plan.md): ordered changes, dependencies, acceptance checks, and release gates.
@@ -11,3 +11,17 @@ Research project for evidence-linked acquisition signals from corporate aircraft
 - [Original supplied blueprint](docs/original-blueprint.txt): preserved reference, not the current implementation contract.
 
 Start with a reproducible offline research pipeline. Real providers, predictive claims, and customer delivery are enabled only after their respective data, evaluation, and operational gates pass. See the plan for the proposed repository layout and development setup to be added in the first implementation commits.
+
+## Development
+
+Install Python 3.11–3.14 and uv, then run:
+
+```sh
+uv sync --locked
+uv run --locked tailwatch --help
+uv run --locked tailwatch fixture
+make check
+make test
+```
+
+Dependency installation needs package-index access once; these commands then run without provider credentials. `fixture` reports synthetic mode and never invents a deal probability. The root is the application checkout; any local nested `tailwatch/` clone is ignored and left untouched.
