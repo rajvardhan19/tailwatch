@@ -12,6 +12,7 @@ Research project for evidence-linked acquisition signals from corporate aircraft
 - [Company and SEC runbook](docs/runbooks/company-and-sec.md): dated identities, resumable filing capture, Form 4 parsing, plan review, and event context.
 - [Aircraft registry runbook](docs/runbooks/aircraft-registry.md): archived observations, quarantines, historical alias lookup and candidate exclusions.
 - [Aircraft control runbook](docs/runbooks/aircraft-control.md): candidate evidence, dated role-specific decisions, rejection and replay.
+- [Airport proximity runbook](docs/runbooks/airport-proximity.md): typed codes, dated coordinates, WGS84 distances and company deduplication.
 - [Detailed audit](docs/deep-design-audit.md): findings, primary sources, and regression scenarios.
 - [Original supplied blueprint](docs/original-blueprint.txt): preserved reference, not the current implementation contract.
 
