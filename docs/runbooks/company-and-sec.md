@@ -19,3 +19,20 @@ All clients in one process share an eight-requests-per-second limiter, including
 Downloaded accession/form headers must match the frozen index. Acceptance timestamps are interpreted in Eastern time and retained separately from first observation; they are **not** claimed as exact public-availability timestamps. Unparseable headers are quarantined. Raw-download completeness is not XML parse completeness and cannot enable model alerts. Quarantine history is append-only even when a subsequent attempt succeeds.
 
 Budgets currently apply per client instance; the provider is free and no paid adapter exists. They are not durable daily account limits. Rights/history review, sector selection, and real-source sampling remain outstanding. The tests do not establish SEC coverage or predictive validity.
+
+## Form 4 extraction and reconciliation (C07)
+
+```sh
+uv run --locked tailwatch parse-form4 tests/fixtures/sec/form4.xml \
+  --accession 0000000001-26-000001 --filed-date 2026-01-02
+```
+
+The parser accepts standalone ownership XML or a full filing's XML block, rejects XML entities and broken footnote references, and preserves transaction decimals, table/row identities, owners, role flags, linked footnotes, normalized row XML, original raw hashes, and the filing-level plan checkbox. Raw bytes remain authoritative; normalized XML is not an exact byte copy.
+
+Extraction does **not** assert that code P is an open-market common-stock purchase, that unchecked plan information means non-plan, or that a named owner is a natural person. `TradeReview` explicitly binds classification to a raw digest, transaction row, its evidence locator, review time, reviewer, resolved person, and economic event. `purchase_episodes` applies reviewed amendment resolution before counting at most one eligible purchase episode per person/issuer/day. Joint owners and partial executions do not multiply rows or episodes automatically.
+
+Unknown amendments suspend matching original candidates and exclude amendment rows until an explicit one-to-one replacement map is supplied. Partial replacement keeps unaffected original rows. Additions, cancellations, and ambiguous multi-amendment chains require further review policies; they are not guessed. An older operational view never sees a future amendment or review. Conflicting raw/parser versions must be explicitly selected before reconciliation.
+
+`parse_downloaded_run(engine, store, run_id)` bridges the durable SEC worklist to versioned ownership storage. Missing downloads or quarantined XML keep parse completeness false. A later parse retry does not create duplicate transaction rows. Operational reads include database recording time so historical source metadata cannot backdate processing knowledge.
+
+The required stratified comparison of at least 50 real filings has **not** been performed. C07 is fixture-tested implementation, not production-validated SEC parsing. [SEC Form 4 instructions](https://www.sec.gov/files/form4.pdf) and [ownership XML specifications](https://www.sec.gov/submit-filings/technical-specifications) are the source contracts to use for that validation.

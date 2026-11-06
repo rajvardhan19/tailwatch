@@ -8,6 +8,7 @@ from tailwatch.sources.objects import LocalObjectStore
 from tailwatch.sources.policy import Mode, Source, load_manifest
 from tailwatch.sources.sec.client import RateLimiter, Response, SECClient
 from tailwatch.sources.sec.ingest import SECJournal
+from tailwatch.sources.sec.ownership_store import parse_downloaded_run
 
 pytestmark = pytest.mark.integration
 
@@ -22,11 +23,19 @@ def test_resumable_worklist_tracks_missing_and_quarantined_filings(
     body = Path("tests/fixtures/sec/master.idx").read_bytes()
 
     def filing(accession, form):
-        return (
+        header = (
             f"<SEC-HEADER>\n<ACCEPTANCE-DATETIME>20260102120000\n"
             f"ACCESSION NUMBER: {accession}\nCONFORMED SUBMISSION TYPE: {form}\n"
             "</SEC-HEADER>\n"
         ).encode()
+        xml = (
+            Path("tests/fixtures/sec/form4.xml")
+            .read_bytes()
+            .replace(
+                b"<documentType>4</documentType>", f"<documentType>{form}</documentType>".encode()
+            )
+        )
+        return header + b"<DOCUMENT><XML>" + xml + b"</XML></DOCUMENT>"
 
     first = filing("0000000001-26-000001", "4")
     second = filing("0000000002-26-000002", "4/A")
@@ -60,12 +69,23 @@ def test_resumable_worklist_tracks_missing_and_quarantined_filings(
     url = "https://www.sec.gov/Archives/edgar/daily-index/2026/QTR1/master.20260102.idx"
     journal.discover(run, url, client)
     assert journal.resume(run, client) == {"expected": 2, "downloaded": 1, "complete": False}
+    assert parse_downloaded_run(database, store, run) == {
+        "expected": 2,
+        "parsed": 1,
+        "complete": False,
+    }
     # A fresh journal resumes persisted successes without refetching the index/first filing.
     resumed = SECJournal(database, store)
     resumed.discover(run, url, client)
     assert resumed.resume(run, client) == {"expected": 2, "downloaded": 2, "complete": True}
     assert resumed.resume(run, client)["complete"] is True
     assert transport.calls == 4
+    assert parse_downloaded_run(database, store, run) == {
+        "expected": 2,
+        "parsed": 2,
+        "complete": True,
+    }
+    assert parse_downloaded_run(database, store, run)["parsed"] == 2
     with database.connect() as connection:
         assert (
             connection.execute(

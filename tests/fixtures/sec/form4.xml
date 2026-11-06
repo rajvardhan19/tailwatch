@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ownershipDocument>
+  <schemaVersion>X0508</schemaVersion><documentType>4</documentType>
+  <periodOfReport>2026-01-01</periodOfReport><aff10b5One>0</aff10b5One>
+  <issuer><issuerCik>1</issuerCik><issuerName>SYNTHETIC COMPANY</issuerName>
+    <issuerTradingSymbol>SYN</issuerTradingSymbol></issuer>
+  <reportingOwner><reportingOwnerId><rptOwnerCik>2</rptOwnerCik>
+    <rptOwnerName>SYNTHETIC PERSON</rptOwnerName></reportingOwnerId>
+    <reportingOwnerRelationship><isDirector>1</isDirector><isOfficer>1</isOfficer>
+      <isTenPercentOwner>0</isTenPercentOwner><officerTitle>Chief Financial Officer</officerTitle>
+    </reportingOwnerRelationship></reportingOwner>
+  <nonDerivativeTable>
+    <nonDerivativeTransaction>
+      <securityTitle><value>Common Stock</value></securityTitle>
+      <transactionDate><value>2026-01-01</value></transactionDate>
+      <transactionCoding><transactionFormType>4</transactionFormType><transactionCode>P</transactionCode></transactionCoding>
+      <transactionAmounts><transactionShares><value>100</value></transactionShares>
+        <transactionPricePerShare><value>12.50</value><footnoteId id="F1"/></transactionPricePerShare>
+        <transactionAcquiredDisposedCode><value>A</value></transactionAcquiredDisposedCode>
+      </transactionAmounts>
+      <ownershipNature><directOrIndirectOwnership><value>D</value></directOrIndirectOwnership></ownershipNature>
+    </nonDerivativeTransaction>
+  </nonDerivativeTable>
+  <footnotes><footnote id="F1">Synthetic fixture: an open-market purchase, not pursuant to a trading plan.</footnote></footnotes>
+  <remarks>All names and trades in this fixture are invented.</remarks>
+</ownershipDocument>

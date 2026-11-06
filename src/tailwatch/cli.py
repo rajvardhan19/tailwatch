@@ -3,7 +3,7 @@
 import argparse
 import json
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from tailwatch import __version__
 from tailwatch.entities.repository import read_history_fixture
 from tailwatch.sources.policy import inventory, load_manifest
+from tailwatch.sources.sec.form4 import parse_form4
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -22,7 +23,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     source_inventory.add_argument("manifest", type=Path)
     history = commands.add_parser("validate-history", help="validate dated entity fixture JSON")
     history.add_argument("path", type=Path)
+    form4 = commands.add_parser("parse-form4", help="extract a local Form 4 XML/SGML file")
+    form4.add_argument("path", type=Path)
+    form4.add_argument("--accession", required=True)
+    form4.add_argument("--filed-date", required=True, type=date.fromisoformat)
     args = parser.parse_args(argv)
+    if args.command == "parse-form4":
+        try:
+            print(
+                parse_form4(
+                    args.path.read_bytes(),
+                    accession=args.accession,
+                    filed_date=args.filed_date,
+                    available_at=datetime.now(UTC),
+                ).model_dump_json()
+            )
+        except (OSError, ValueError) as error:
+            parser.exit(2, f"Invalid Form 4: {error}\n")
     if args.command == "validate-history":
         try:
             print(read_history_fixture(args.path).model_dump_json())
