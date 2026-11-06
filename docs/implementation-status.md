@@ -16,8 +16,9 @@ Updated November 6, 2026. The roadmap remains the full target; this file disting
 | C09 | Typed event/calendar/coverage imports, dated corrections, explicit blackout exposure | Earnings/calendar/event vendors not selected or connected |
 | C10 | FAA CSV archive parsing, immutable manifests, quarantines, dated alias observations and freshness-bounded lookup | Real archive dates/coverage validation, live acquisition, resolved airframe identities and privacy review pending |
 | C11 | Dated candidate evidence, explicit role-specific review, privacy and direct-evidence checks, immutable decisions and operational resolution | Real stratified attribution evaluation, intermediary inventory, validated home-base observations and reviewer workflow remain pending |
-| C12–C31 | Planned | Not implemented |
+| C12 | Typed airport histories/aliases, strict CSV normalization, WGS84 office distances, dated evidence links and company deduplication | Live source onboarding, archive reconciliation, coordinate/coverage validation and production spatial indexing pending |
+| C13–C31 | Planned | Not implemented |
 
 No live source, notification sender, model, or customer API is enabled. The SEC adapter is available for explicit configuration; development/CI use synthetic transports. `fixture` reports mode status; it is not an end-to-end scoring demonstration. Provider coverage and predictive success are not inferred from synthetic tests.
 
-Next implementation group: C12–C14, covering airport proximity, flight imports, and visits. Live ingestion remains subject to source permissions and G0; offline fixtures can proceed independently.
+Next implementation group: C13–C14, covering flight imports and visits. Live ingestion remains subject to source permissions and G0; offline fixtures can proceed independently.

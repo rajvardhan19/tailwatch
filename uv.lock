@@ -44,6 +44,15 @@ wheels = [
 ]
 
 [[package]]
+name = "geographiclib"
+version = "2.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/df/78/4892343230a9d29faa1364564e525307a37e54ad776ea62c12129dbba704/geographiclib-2.1.tar.gz", hash = "sha256:6a6545e6262d0ed3522e13c515713718797e37ed8c672c31ad7b249f372ef108", size = 37004, upload-time = "2025-08-21T21:34:26Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/31/b3/802576f2ea5dcb48501bb162e4c7b7b3ca5654a42b2c968ef98a797a4c79/geographiclib-2.1-py3-none-any.whl", hash = "sha256:e2a873b9b9e7fc38721ad73d5f4e6c9ed140d428a339970f505c07056997d40b", size = 40740, upload-time = "2025-08-21T21:34:24.955Z" },
+]
+
+[[package]]
 name = "greenlet"
 version = "3.5.6"
 source = { registry = "https://pypi.org/simple" }
@@ -670,6 +679,7 @@ source = { editable = "." }
 dependencies = [
     { name = "alembic" },
     { name = "defusedxml" },
+    { name = "geographiclib" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
     { name = "sqlalchemy" },
@@ -687,6 +697,7 @@ dev = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.15,<2" },
     { name = "defusedxml", specifier = ">=0.7,<1" },
+    { name = "geographiclib", specifier = ">=2.1,<3" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
     { name = "pydantic", specifier = ">=2.10,<3" },
     { name = "sqlalchemy", specifier = ">=2.0,<2.1" },
