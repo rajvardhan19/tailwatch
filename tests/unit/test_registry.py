@@ -88,11 +88,20 @@ def test_duplicate_alias_or_airframe_quarantines_all_implicated_rows(second):
 
 
 def test_malformed_rows_and_unknown_fields_are_explicit():
-    result = archive(ROW + "broken\n" + ROW.replace("123AB", "00000"))
+    result = archive(ROW + "broken\n" + "00000,OTHER,1234567,3,SYNTHETIC,V,,ABC125\n")
     assert len(result.records) == 1
     assert len(result.quarantined) == 2
     assert result.row_count == 3
     assert archive(ROW.replace("SYNTHETIC CORP", "")).records[0].disclosure == "unknown"
+
+
+def test_malformed_duplicate_cannot_leave_a_false_unique_identity():
+    result = archive(ROW + ROW.replace("ABC123", "invalid"))
+    assert not result.records
+    assert len(result.quarantined) == 2
+    truncated = archive(ROW + "123AB\n")
+    assert not truncated.records
+    assert len(truncated.quarantined) == 2
 
 
 def test_same_timestamp_conflicts_fail_closed_and_input_requires_aware_time():

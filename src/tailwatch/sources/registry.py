@@ -121,11 +121,28 @@ def parse_master(
         raise ValueError("missing or duplicate registry columns")
     records: list[Registration] = []
     failures: list[Quarantine] = []
+    aliases: dict[tuple[str, str], int] = {}
+    collisions: set[int] = set()
     count = 0
     for number, fields in enumerate(reader, start=2):
         count += 1
         if len(fields) == len(header) + 1 and fields[-1].strip() == "":
             fields.pop()
+        # Preserve collision evidence even if another field in the row is bad.
+        # Short rows can still expose a conflicting tail at its declared column.
+        partial = dict(zip(header, (v.strip().upper() for v in fields), strict=False))
+        identifiers = {
+            "tail": partial.get("N-NUMBER", ""),
+            "icao24": partial.get("MODE S CODE HEX", ""),
+        }
+        if partial.get("MFR MDL CODE") and partial.get("SERIAL NUMBER"):
+            identifiers["airframe"] = partial["MFR MDL CODE"] + ":" + partial["SERIAL NUMBER"]
+        for kind, value in identifiers.items():
+            if value:
+                key = (kind, value)
+                if key in aliases:
+                    collisions.update((number, aliases[key]))
+                aliases[key] = number
         try:
             if len(fields) != len(header):
                 raise ValueError("incorrect column count")
@@ -160,16 +177,10 @@ def parse_master(
             # Raw content stays in the object store; errors do not leak names.
             failures.append(Quarantine(row=number, reason="malformed registry row"))
     # Duplicate aliases or candidate identities make ALL implicated rows unsafe.
-    collisions: set[int] = set()
-    for field in ("tail", "icao24", "airframe_candidate_key"):
-        seen: dict[str, int] = {}
-        for record in records:
-            value = getattr(record, field)
-            if value is not None:
-                if value in seen:
-                    collisions.update((record.row, seen[value]))
-                seen[value] = record.row
-    failures.extend(Quarantine(row=r, reason="ambiguous registry identity") for r in collisions)
+    failed_rows = {q.row for q in failures}
+    failures.extend(
+        Quarantine(row=r, reason="ambiguous registry identity") for r in collisions - failed_rows
+    )
     return RegistryArchive(
         source_id=source_id,
         digest=hashlib.sha256(raw).hexdigest(),
