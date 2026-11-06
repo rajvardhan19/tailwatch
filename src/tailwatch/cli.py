@@ -1,6 +1,7 @@
 """Offline-first CLI; importing or running help never contacts a provider."""
 
 import argparse
+import csv
 import json
 from collections.abc import Sequence
 from datetime import UTC, date, datetime
@@ -11,6 +12,7 @@ from pydantic import ValidationError
 from tailwatch import __version__
 from tailwatch.entities.repository import read_history_fixture
 from tailwatch.sources.policy import inventory, load_manifest
+from tailwatch.sources.registry import parse_master
 from tailwatch.sources.sec.form4 import parse_form4
 from tailwatch.sources.sec.plans import plan_candidates
 
@@ -32,7 +34,35 @@ def main(argv: Sequence[str] | None = None) -> int:
         "plan-candidates", help="extract passages for manual Item 408 review"
     )
     plans.add_argument("path", type=Path)
+    registry = commands.add_parser("inspect-registry", help="validate a local FAA MASTER snapshot")
+    registry.add_argument("path", type=Path)
+    registry.add_argument("--observed-at", required=True, type=datetime.fromisoformat)
     args = parser.parse_args(argv)
+    if args.command == "inspect-registry":
+        try:
+            archive = parse_master(
+                args.path.read_bytes(),
+                source_id="local-inspection",
+                observed_at=args.observed_at,
+                available_at=datetime.now(UTC),
+            )
+            print(
+                json.dumps(
+                    {
+                        "digest": archive.digest,
+                        "parser_version": archive.parser_version,
+                        "row_count": archive.row_count,
+                        "accepted": len(archive.records),
+                        "quarantined": len(archive.quarantined),
+                        "control_review_candidates": sum(
+                            r.eligible_for_control_review for r in archive.records
+                        ),
+                        "tracking_enabled": False,
+                    }
+                )
+            )
+        except (OSError, ValueError, csv.Error) as error:
+            parser.exit(2, f"Invalid registry: {error}\n")
     if args.command == "plan-candidates":
         try:
             print(

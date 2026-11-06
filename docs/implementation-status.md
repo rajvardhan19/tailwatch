@@ -14,8 +14,9 @@ Updated November 6, 2026. The roadmap remains the full target; this file disting
 | C07 | Hardened Form 4 extraction, normalized versioned storage, reviewed transaction classification and amendment reconciliation | Stratified comparison of 50 real filings pending; unresolved amendments excluded |
 | C08 | Item 408 passage candidates, evidence-bound reviewed quarterly records and termination count policy | Real disclosure validation and analyst review required |
 | C09 | Typed event/calendar/coverage imports, dated corrections, explicit blackout exposure | Earnings/calendar/event vendors not selected or connected |
-| C10–C31 | Planned | Not implemented |
+| C10 | FAA CSV archive parsing, immutable manifests, quarantines, dated alias observations and freshness-bounded lookup | Real archive dates/coverage validation, live acquisition, resolved airframe identities and privacy review pending |
+| C11–C31 | Planned | Not implemented |
 
 No live source, notification sender, model, or customer API is enabled. The SEC adapter is available for explicit configuration; development/CI use synthetic transports. `fixture` reports mode status; it is not an end-to-end scoring demonstration. Provider coverage and predictive success are not inferred from synthetic tests.
 
-Next implementation group: C10–C14, covering registry snapshots, reviewed aircraft ownership, airport proximity, flight imports, and visits. Live ingestion remains subject to source permissions and G0; offline fixtures can proceed independently.
+Next implementation group: C11–C14, covering reviewed aircraft control, airport proximity, flight imports, and visits. Live ingestion remains subject to source permissions and G0; offline fixtures can proceed independently.
