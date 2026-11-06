@@ -10,6 +10,7 @@ Research project for evidence-linked acquisition signals from corporate aircraft
 - [Implementation status](docs/implementation-status.md): delivered components and outstanding gates.
 - [Development runbook](docs/runbooks/development.md): database setup, migrations, source policy, and replay contracts.
 - [Company and SEC runbook](docs/runbooks/company-and-sec.md): dated identities, resumable filing capture, Form 4 parsing, plan review, and event context.
+- [Aircraft registry runbook](docs/runbooks/aircraft-registry.md): archived observations, quarantines, historical alias lookup and candidate exclusions.
 - [Detailed audit](docs/deep-design-audit.md): findings, primary sources, and regression scenarios.
 - [Original supplied blueprint](docs/original-blueprint.txt): preserved reference, not the current implementation contract.
 
