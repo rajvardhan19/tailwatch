@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from unittest.mock import Mock
 from uuid import uuid4
 
 import pytest
@@ -8,6 +9,7 @@ from tailwatch.entities.airports import (
     Coordinates,
     ProximityLink,
     ProximitySnapshot,
+    airport_histories,
     distance_km,
     parse_ourairports,
     resolve_alias,
@@ -19,6 +21,13 @@ HEADER = (
     "icao_code,iata_code,gps_code,local_code\n"
 )
 ROW = "1,SYN-001,small_airport,Synthetic Airport,40,-74,US,,,SYN1,01\n"
+
+
+def test_unknown_history_versions_cannot_silently_remove_an_airport():
+    repo = Mock()
+    repo.as_of.return_value = [Mock(logical_key="airport:future", parser_version="future-v2")]
+    with pytest.raises(ValueError, match="unsupported"):
+        airport_histories(repo, "synthetic", START, START)
 
 
 def test_no_iata_and_local_code_collision_require_explicit_namespace_and_scope():

@@ -149,11 +149,14 @@ def append_airport(repo: EvidenceRepository, store: ObjectStore, raw: bytes, fac
 def airport_histories(
     repo: EvidenceRepository, source_id: str, cutoff: datetime, effective_at: datetime
 ) -> list[tuple[Fact, AirportHistory]]:
-    return [
-        (f, AirportHistory.model_validate(f.payload))
-        for f in repo.as_of(source_id=source_id, cutoff=cutoff, effective_at=effective_at)
-        if f.logical_key.startswith("airport:") and f.parser_version == "airport-history-v1"
-    ]
+    result = []
+    for fact in repo.as_of(source_id=source_id, cutoff=cutoff, effective_at=effective_at):
+        if not fact.logical_key.startswith("airport:"):
+            continue
+        if fact.parser_version != "airport-history-v1":
+            raise ValueError("unsupported airport history version")
+        result.append((fact, AirportHistory.model_validate(fact.payload)))
+    return result
 
 
 def resolve_alias(
