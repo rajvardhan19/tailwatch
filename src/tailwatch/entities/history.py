@@ -1,7 +1,7 @@
 """Complete, non-overlapping histories; corrections version the whole history."""
 
 from datetime import datetime
-from typing import Annotated, Generic, Literal, TypeAlias, TypeVar
+from typing import Annotated, Any, Generic, Literal, TypeAlias, TypeVar, cast
 from uuid import UUID
 
 from pydantic import AwareDatetime, Field, TypeAdapter, model_validator
@@ -116,4 +116,4 @@ EntityHistory: TypeAlias = Annotated[
     Field(discriminator="kind"),
 ]
 # Pydantic accepts Annotated unions at runtime; its constructor overload is narrower.
-HISTORY: TypeAdapter[EntityHistory] = TypeAdapter(EntityHistory)  # type: ignore[arg-type]
+HISTORY: TypeAdapter[EntityHistory] = TypeAdapter(cast(Any, EntityHistory))
