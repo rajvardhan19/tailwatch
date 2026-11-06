@@ -1,0 +1,408 @@
+Deal Signal Technical Blueprint
+Nov 5, 2026 · @Rajvardhan Patil
+This blueprint specifies a production system that turns corporate jet trips, SEC Form 4 insider activity and company strategy text into explained, evidence-linked deal alerts for specific company pairs.
+Architecture
+Data flows top to bottom once a day. Outcomes logged in the track record are fed back to retrain the scoring model each quarter.
+Data Sources
+The insider and aircraft-ownership data is free. Flight history is the main cost, and any commercial product needs a paid flight-data licence.
+Source
+What it gives
+Freshness
+Cost
+Access
+SEC EDGAR Form 4
+Insider trades, transaction codes, 10b5-1 checkbox and plan adoption date
+Filed within 2 business days of the trade
+Free
+Daily index plus filing XML; at most 10 requests per second; declared User-Agent with contact email
+EDGAR 10-Q and 10-K, Item 408(a)
+Officer and director 10b5-1 plan adoptions and terminations
+Quarterly
+Free
+Filing text and Inline XBRL tags
+EDGAR 8-K, SC 13D, S-4, DEFM14A
+Deal announcements, used as backtest labels
+Same day
+Free
+EDGAR full-text search and indexes
+FAA Releasable Aircraft Database
+Tail number, Mode S hex code, registered owner name and address
+Refreshed daily at 11:30 pm Central
+Free
+ReleasableAircraft.zip (MASTER.txt and reference files)
+OpenSky Network
+ADS-B positions, flights by aircraft, arrivals and departures
+Live; standard users reach 1 hour back on state vectors
+Free tier of 4,000 credits a day; commercial licence for products
+REST with OAuth2 client credentials
+ADS-B Exchange
+Unfiltered live positions and historical traces
+Live and archive
+Community API is non-commercial only; commercial use needs a licence
+Enterprise API and historical trace files
+FlightAware AeroAPI
+Flights, tracks and history back to 2011
+Live and archive
+Per-query fees; Personal tier has $5 free a month, Standard has a $100 monthly minimum
+REST with API key
+Company investor-relations pages, transcript vendors
+Strategy text for the fit score
+Quarterly and ad hoc
+Free to vendor-priced
+Scheduled fetch, licensed feed
+OurAirports dataset
+Airport codes and coordinates
+Static, updated by community
+Free
+CSV
+Market data vendor
+Daily prices for return measurement
+Daily
+Vendor-priced
+REST
+Two licensing rules shape the build. ADS-B Exchange states that any project for a commercial entity needs a commercial licence, even for internal use. OpenSky's free tier suits research and prototypes, not a paid product.
+Coverage has a known gap. Aircraft in the FAA Privacy ICAO Address (PIA) programme broadcast an alternate address not tied to the registry, so their owner cannot be looked up. LADD only limits data the FAA shares, so unfiltered networks still see LADD aircraft.
+Data Model
+Every row carries a known_at timestamp: the moment the system could first have seen it. Backtests filter on known_at, never on the event date, which removes look-ahead bias by design. Production runs on PostgreSQL with PostGIS for distance queries; the starter code uses SQLite with the same schema.
+Table
+Key fields
+Purpose
+companies
+company_id, cik, ticker, name, sector, market_cap, cash
+Every tracked public company, private equity firm or target
+offices
+office_id, company_id, kind (HQ, R&D, plant), lat, lon
+Places a visit can land near
+aircraft
+icao_hex, tail_number, registrant_name, valid_from, valid_to
+Registry history, one row per ownership period
+aircraft_links
+icao_hex, company_id, method, confidence, evidence_url
+Which company really controls each jet
+airports
+code, name, lat, lon
+Landing points
+airport_office_links
+airport_code, office_id, distance_km
+Offices within reach of each airport
+flights
+icao_hex, dep_airport, arr_airport, dep_time, arr_time, source
+Raw legs from the flight provider
+visits
+visitor_id, host_id, airport_code, arrive, depart, dwell_hours, event_id
+A jet on the ground near another company's office
+known_events
+event_id, name, airport_code, start, end
+Conferences and board meetings used to discount trips
+insider_trades
+accession_no, issuer_cik, insider_cik, role, trade_date, filed_at, code, shares, price, is_10b5_1, is_amendment
+Parsed Form 4 rows
+plan_events
+company_id, insider_name, event (adopted, terminated), period_end, filed_at, url
+Item 408(a) disclosures
+strategy_docs
+doc_id, company_id, kind, published_at, url, embedding
+Text behind the strategic fit score
+deals
+acquirer_id, target_id, announced_at, url
+Ground truth for training and evaluation
+features
+pair_id, as_of, name, value, evidence_ids
+Every computed signal, kept for audit
+alerts
+alert_id, visitor_id, host_id, as_of, probability, confidence, contributions, explanation, status
+What users see
+alert_outcomes
+alert_id, deal_announced, announced_at, abnormal_return_5d, abnormal_return_30d
+The public track record
+Entity Resolution
+Knowing which company controls each jet is the hardest step and the main advantage over competitors. Each link gets a confidence level, and only confirmed or probable links feed alerts.
+Matching jets to companies
+1. Scope rule. Track only aircraft registered to companies or their trusts. Aircraft registered to individuals are dropped at ingestion.
+2. Name match. Normalise registrant names (strip LLC, INC, CORP and punctuation), then match against company names and the subsidiary lists in each 10-K's Exhibit 21.
+3. Trust registrations. Many corporate jets are registered to bank owner-trustees such as Bank of Utah, which hides the real owner. Flag these and resolve them with the next two steps.
+4. Address match. Compare the registrant's mailing address with company addresses from SEC filings.
+5. Home base. The airport where a jet most often spends the night. A home base within 30 km of a company's headquarters raises confidence.
+6. Fractional jets. The FAA file marks fractional ownership. Those jets fly many owners, so they are excluded rather than guessed.
+7. Confidence levels. Confirmed (name match or public disclosure), probable (address plus home base), possible (flight pattern only). Possible links are shown to users with a flag but never trigger alerts alone.
+8. Review queue. An analyst agent proposes links; a person approves the top 200 aircraft by alert volume.
+Matching airports to offices
+• Link every office to the airports within 50 km, since business jets often use smaller airfields, such as Teterboro for New York.
+• A visit is a landing at an airport linked to the host company's office, followed by time on the ground.
+• Dense cities are ambiguous: one landing could be for any of dozens of companies. The visit's weight is split across candidate hosts by distance and strategic fit, so New York trips count for less than a trip to a small town with one company.
+Signal Engine
+The engine scores company pairs: visitor V, whose jet travels, and host H, whose office it lands near. Each day it computes the features below for every active pair, then a model turns them into a deal probability. Numbers marked as starting values are defaults that the backtest tunes.
+Flight: pair visit score. Each visit i counts by how long the jet stayed, whether it matched a known event, how ambiguous the city is, and how recent it was.
+F_{VH}(t) = \sum_i w_{dwell}(d_i)\, w_{event}(i)\, w_{city}(i)\, e^{-(t - t_i)/\tau_f}
+• w_dwell is 0 under 1 hour (a refuelling stop), rising to 1 at 4 hours or more.
+• w_event is 0.2 when the visit overlaps a known conference or board meeting, else 1.
+• w_city is H's share of nearby candidate hosts, weighted by distance.
+• τ_f is 14 days (starting value).
+Flight: novelty and intensity. Novelty is 1 when V has not visited H in the past 365 days. Intensity is V's trip count in the last 30 days as a z-score against V's own 12-month history, so each company is judged against its own baseline.
+Insider buying. Only open-market purchases (code P) without the 10b5-1 checkbox count. Each purchase is weighted by role (chief executive and finance chief 1.0, director 0.7, other officers 0.5) and decays with τ_b of 30 days. Three or more distinct buyers within 14 days multiply the score by 1.5.
+Insider silence. For each insider with a regular selling rhythm (at least 4 open-market sales in the prior 12 months), the expected number of sales in the last 45 days is λ. If they made none, the surprise is λ, because the chance of zero sales is e to the minus λ.
+S_H(t) = \frac{1}{n_H} \sum_{i \,\in\, \text{silent insiders}} \lambda_i
+Regular earnings blackouts are expected silence, so windows from 2 weeks before quarter end to 2 days after each earnings release are excluded. Without this step the signal would fire every quarter.
+Plan terminations. The count of officer and director 10b5-1 plan terminations in H's latest 10-Q or 10-K. Plans that simply expired are not disclosed under Item 408(a), so every disclosed termination was an active choice. This signal is slow, because it only arrives with each quarterly report.
+Strategic fit. The cosine similarity between an embedding of V's recent strategy text (last 4 quarters of transcripts and press releases) and an embedding of H's business description from its 10-K, scaled to 0 to 1.
+Buyer or target. The ratio of V's market value to H's and V's cash as a share of H's market value. A large ratio suggests V is the buyer.
+Combined model. A logistic regression predicts whether V and H announce a deal within 180 days. The interaction term is the overlap bonus: it pays off only when flights and insider silence fire together.
+p_{VH} = \sigma\Big(\beta_0 + \sum_k \beta_k x_k + \beta_{\times}\, F_{VH} \cdot S_H\Big)
+Contribution breakdown. Each feature's push on the score, relative to an average pair, gives the percentages shown in each alert.
+c_k = \beta_k (x_k - \bar{x}_k), \qquad \text{share}_k = \frac{|c_k|}{\sum_j |c_j|}
+Confidence. The model is refitted on 200 bootstrap samples, and the alert shows the 90% range of p. A wide range or a possible-only aircraft link lowers the confidence label.
+Alert threshold. Set from the backtest so that alerts reach a target precision on held-out data. Pairs below the threshold still appear on watchlists but send no notification.
+Agent Team
+Sixteen agents in four layers: one director, three desk leads, nine analysts and a three-agent review team. Code does all counting and scoring; language-model agents handle judgment, reading and writing.
+Agent
+Desk
+Job
+Runs as
+Output
+Director
+Top
+Starts the daily run, assigns work, approves alerts, escalates failures
+Workflow engine plus language model
+Run plan, approved alerts
+Flight desk lead
+Flight
+Checks flight data freshness and coverage, signs off visits
+Language model
+Desk report
+Insider desk lead
+Insider
+Checks filing ingestion and parsing errors, signs off insider signals
+Language model
+Desk report
+Strategy desk lead
+Strategy
+Checks text coverage and fit scores
+Language model
+Desk report
+Jet tracker
+Flight
+Pulls flights for linked aircraft and detects landings near offices
+Code
+Flights, candidate visits
+Ownership resolver
+Flight
+Links jets to companies, reasons over trusts and addresses
+Code plus language model
+Aircraft links with confidence
+Trip filter
+Flight
+Applies dwell time, known events and city weights
+Code
+Scored visits
+Form 4 parser
+Insider
+Parses every new Form 4, handles amendments
+Code
+Insider trades
+Silence detector
+Insider
+Learns each insider's rhythm and flags unusual quiet
+Code
+Silence scores
+10b5-1 plan tracker
+Insider
+Reads Item 408(a) sections in 10-Q and 10-K filings
+Code plus language model
+Plan events
+Transcript reader
+Strategy
+Embeds strategy text and business descriptions
+Language model plus embeddings
+Fit scores
+Buyer or target
+Strategy
+Estimates which side is buying from size and cash
+Code
+Role estimate
+Lookalike finder
+Strategy
+Finds past pairs with the closest feature pattern
+Code
+Lookalike cases with outcomes
+Scoring agent
+Review
+Runs the model, contributions and confidence range
+Code
+Scored pairs
+Skeptic agent
+Review
+Argues each alert is false: known event, data gap, deal already public
+Language model
+Pass, downgrade or veto with reasons
+Report writer
+Review
+Writes the plain-English alert with a link for every claim
+Language model
+Alert text
+Rules that keep agents reliable
+• Agents pass structured records through a task queue and the shared database, not free-form chat.
+• Every record carries evidence IDs. The report writer cannot state a fact that lacks one.
+• Language-model agents never invent numbers; they only read numbers that code computed.
+• The skeptic's veto is logged with its reason, so the track record also measures the skeptic.
+• To cover a new sector, add analysts; the desk leads and director stay the same.
+Alerts and Delivery
+Every alert is one record that carries its score, its reasons and a link for each piece of evidence. The dashboard, notifications and API all read the same record.
+{
+  "alert_id": "al_2026_11_05_0007",
+  "as_of": "2026-11-05T06:00:00Z",
+  "visitor": {"ticker": "AAAA", "role_estimate": "buyer"},
+  "host": {"ticker": "BBBB", "role_estimate": "target"},
+  "probability": 0.31,
+  "range_90": [0.22, 0.41],
+  "confidence": "medium",
+  "contributions": {"flights": 0.41, "insider_silence": 0.27, "overlap": 0.18, "strategic_fit": 0.14},
+  "explanation": "AAAA's jet spent 5 hours near BBBB's headquarters three times in 12 days. Two BBBB officers who usually sell monthly have not sold in 7 weeks.",
+  "evidence": [
+    {"kind": "flight", "url": "..."},
+    {"kind": "form4", "url": "https://www.sec.gov/Archives/edgar/data/..."},
+    {"kind": "transcript", "url": "..."}
+  ],
+  "lookalikes": [{"pair": "CCCC-DDDD", "year": 2023, "outcome": "deal announced"}],
+  "skeptic": {"verdict": "pass", "notes": "No overlapping conference found."}
+}
+The example values are illustrative, not real companies or results.
+Endpoint
+Method
+Returns
+/v1/alerts
+GET
+Recent alerts, filterable by sector, ticker, minimum probability
+/v1/alerts/{id}
+GET
+One alert with full evidence
+/v1/pairs/{visitor}/{host}
+GET
+Daily score history for a pair
+/v1/companies/{ticker}/signals
+GET
+Flight, buying, silence and fit scores for one company
+/v1/watchlists
+POST
+Create a watchlist of tickers or sectors
+/v1/track-record
+GET
+Every past alert with its outcome
+• Notifications. Watchlist alerts go out by email, Slack webhook or push once the director approves them.
+• Access. API keys per customer, rate-limited, with every request logged.
+• Timing. The daily run finishes before the US market opens, and urgent pairs are rescored intraday when new Form 4 filings land.
+Backtesting and Evaluation
+The backtest replays history one day at a time, showing the model only rows whose known_at is on or before that day. A result only counts if it beats random pairs and flight-only and insider-only models on data the model never trained on.
+Point-in-time rules
+• Form 4 rows become visible on their filing date, not the trade date.
+• Plan terminations become visible on the 10-Q or 10-K filing date.
+• Aircraft links use the registry as it stood on each day: the FAA's yearly registry releases for past years, and the system's own daily snapshots from launch.
+• Strategy text uses only documents published before the day being scored.
+• Deals in the label set use their first public announcement time.
+Splits. Train on the earliest years, tune on the next year, and test once on the most recent period. Use walk-forward retraining, never random shuffles, because pairs from the same deal would leak across splits.
+Metrics
+Metric
+What it answers
+Precision at the alert threshold
+When we alert, how often does a deal follow within 180 days?
+Recall
+What share of deals between tracked companies did we flag first?
+Lead time
+Median days between the first alert and the announcement
+Lift over random
+Precision divided by the base rate of deals among all pairs
+Added value of combining
+Precision of the combined model minus the best single-signal model
+Abnormal return
+Host's return over 5 and 30 days after the alert, minus the market
+Skeptic accuracy
+How often vetoed alerts would have been false alarms
+Public track record. From launch, every alert is written to an append-only log with a timestamp and a hash, so nobody can edit it later. Outcomes are filled in automatically when deals are announced or the 180-day window closes.
+Infrastructure, Monitoring and Costs
+A small cloud setup is enough to start. Flight data is the only large bill, and it is priced by quote for commercial use.
+Component
+Choice
+Why
+Language
+Python 3.11+
+Data libraries, SEC and flight tooling
+Scheduler
+Prefect or Airflow
+Daily runs, retries, backfills
+Database
+PostgreSQL with PostGIS
+Pair queries and airport distances
+Raw storage
+Object storage (S3 or similar)
+Keeps every downloaded file for audit and replays
+Queue
+Redis or a managed queue
+Hands tasks between agents
+Language models
+Claude API, with a daily spending cap
+Ownership reasoning, plan text, skeptic, report writer
+Embeddings
+One embedding model, versioned
+Strategic fit scores
+API
+FastAPI
+Customer endpoints and dashboard backend
+Dashboard
+A web front end over the API
+Alerts, pairs, track record
+Monitoring checks, run every day
+• Freshness: the newest Form 4, flight and registry rows are no more than one cycle old.
+• Parse health: failed Form 4 parses stay under 1% of new filings.
+• Coverage: the share of tracked jets seen in the last 30 days, which falls if aircraft move into PIA.
+• Model drift: weekly comparison of feature distributions against the training period.
+• Alert volume: a sudden jump or drop in alerts pages the operator before anything is sent.
+Running costs
+Item
+Cost
+SEC EDGAR and FAA registry
+Free
+FlightAware AeroAPI Standard
+$100 monthly minimum plus per-query fees
+ADS-B Exchange or OpenSky commercial licence
+By quote
+Cloud database, compute and storage
+Approximately $100 to $300 a month at prototype scale
+Language model calls
+Scales with alerts reviewed; capped daily
+For a portfolio project, use OpenSky's free research access and EDGAR. Buy a commercial flight licence only once someone pays for the product.
+Build Phases
+Six phases, each ending in a check that must pass before the next starts. The starter codebase covers the core of phases 1 to 4 on sample data.
+1. Insider pipeline. Ingest and parse Form 4 filings and Item 408(a) plan events for one sector. Check: parsed trades match EDGAR's own display for 50 randomly chosen filings.
+2. Aircraft and visits. Load the FAA registry, resolve corporate jets, pull flights and detect visits with dwell times. Check: hand-verified ownership for the 100 most active jets in the sector.
+3. Signals. Compute flight, buying, silence, plan-termination, fit and role features for every pair each day. Check: features are reproducible from stored raw files.
+4. Model and backtest. Train the combined model, compare it with single-signal models and random pairs. Check: the combined model beats the best single signal on the held-out test period. If it does not, stop and rethink before building more.
+5. Agents and alerts. Add the desk leads, skeptic, report writer and director approval. Check: every claim in 100 sample alerts links to evidence.
+6. Product. API, dashboard, watchlists, notifications and the public track record. Check: a full daily run completes before the market opens for 10 days in a row.
+Risks and Open Questions
+Risk
+Effect
+Mitigation
+Too few deals to train on
+Weights are unstable and overfit
+Start with a simple model, pool sectors, report confidence ranges
+Hidden aircraft (PIA, fractional, charter)
+Missed deals, lower recall
+Measure coverage openly and lean on the insider and fit signals
+Flight history access
+OpenSky's free API reaches only recent data; deep history needs research approval or a paid licence
+Apply for research access early; budget for a commercial feed
+Silence has innocent causes
+False alarms from leave, wealth planning or company-wide blackouts
+Exclude earnings blackouts; require silence across several insiders
+Language-model mistakes
+Wrong ownership links or invented claims
+Evidence IDs on every claim; human review for top aircraft
+Privacy and misuse
+Tracking people rather than companies
+Only company-registered aircraft; no individual travel profiles
+Legal review
+Unclear rules for commercial use
+Public data only; get a securities lawyer's view before selling
+Open questions
+• Which sector goes first? It decides which companies, airports and transcripts to collect.
+• Which flight provider fits the budget for a commercial launch?
+• What precision should an alert reach before notifications are switched on?
