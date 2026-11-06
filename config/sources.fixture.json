@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "sector": null,
+  "required_sources": ["synthetic"],
+  "sources": [{
+    "source_id": "synthetic",
+    "enabled": true,
+    "kind": "fixture",
+    "capabilities": ["fixture"],
+    "latency_seconds": 0,
+    "permission": {
+      "reference": "Repository-authored synthetic fixtures; no provider data",
+      "reviewed_by": "project-fixture-policy",
+      "valid_from": "2026-01-01T00:00:00Z",
+      "valid_until": "2030-01-01T00:00:00Z",
+      "modes": ["fixture"],
+      "retention": true,
+      "derived_output": true
+    },
+    "coverage": [],
+    "max_requests": 100,
+    "max_cost_microusd": 0
+  }]
+}
