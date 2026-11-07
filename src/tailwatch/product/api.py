@@ -88,7 +88,8 @@ def create_app(engine: Engine, *, production_enabled: bool = False) -> FastAPI:
                 SELECT kind,body,sequence FROM alert_events WHERE episode_id=a.episode_id
                 AND kind<>'outcome' ORDER BY sequence DESC LIMIT 1
               ) e ON true WHERE a.tenant_id=:tenant AND e.kind='approved'
-              AND (a.synthetic OR :production) AND (CAST(:after AS uuid) IS NULL OR a.episode_id>CAST(:after AS uuid))
+              AND (a.synthetic OR :production)
+              AND (CAST(:after AS uuid) IS NULL OR a.episode_id>CAST(:after AS uuid))
               ORDER BY a.episode_id LIMIT :limit
             """),
                     {
