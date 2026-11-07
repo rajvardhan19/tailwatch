@@ -68,8 +68,8 @@ def semantic_similarity(
         ]
         mean = [sum(d[i] for d in doc_means) / len(doc_means) for i in range(len(group[0].vector))]
         norm = math.sqrt(sum(v * v for v in mean))
-        if norm == 0:
-            return Signal(status=Availability.AMBIGUOUS, reason="zero_vector")
+        if not math.isfinite(norm) or norm == 0:
+            return Signal(status=Availability.AMBIGUOUS, reason="zero_or_overflowed_vector")
         means.append([v / norm for v in mean])
     cosine = sum(a * b for a, b in zip(*means, strict=True))
     return Signal(

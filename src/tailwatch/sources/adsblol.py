@@ -5,7 +5,7 @@ from datetime import datetime
 from urllib.request import Request, build_opener
 
 from tailwatch.sources.objects import ObjectStore
-from tailwatch.sources.policy import Mode, RequestBudget, Source, authorize
+from tailwatch.sources.policy import Budget, Mode, Source, authorize
 from tailwatch.sources.sec.client import NoRedirect
 
 
@@ -16,7 +16,7 @@ def capture_state(
     source: Source,
     mode: Mode,
     at: datetime,
-    budget: RequestBudget,
+    budget: Budget,
     store: ObjectStore,
 ) -> str:
     if not re.fullmatch(r"[0-9a-f]{6}", icao24) or icao24 not in approved_aircraft:

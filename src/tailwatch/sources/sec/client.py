@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from tailwatch.sources.objects import ObjectStore
-from tailwatch.sources.policy import Mode, RequestBudget, Source, authorize
+from tailwatch.sources.policy import Budget, Mode, RequestBudget, Source, authorize
 
 MAX_BYTES = 25 * 1024 * 1024
 
@@ -114,6 +114,7 @@ class SECClient:
         store: ObjectStore,
         transport: Transport,
         record: Callable[[Fetch], None],
+        budget: Budget | None = None,
         limiter: RateLimiter = SHARED_LIMITER,
         sleep: Callable[[float], None] = time.sleep,
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
@@ -125,7 +126,7 @@ class SECClient:
         if isinstance(transport, HTTPTransport) and source.kind != "live":
             raise ValueError("HTTP transport cannot use fixture permissions")
         self.limiter, self.sleep, self.now = limiter, sleep, now
-        self.budget = RequestBudget(source)
+        self.budget: Budget = budget if budget is not None else RequestBudget(source)
 
     def get(self, url: str) -> tuple[bytes, Fetch]:
         validate_url(url)

@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from threading import Lock
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Protocol
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
@@ -122,11 +122,15 @@ def authorize(
         raise PolicyDenied("B2B distribution is not permitted")
 
 
+class Budget(Protocol):
+    def reserve(self, cost_microusd: int) -> None: ...
+
+
 class RequestBudget:
     """Thread-safe, conservative per-run reservations, charged even after failure.
 
     No refunds: retries and each page reserve separately. This is not a durable
-    daily/customer ledger. Until that exists, no live adapter can be enabled.
+    daily/customer ledger. Live workers should inject operations.DurableBudget.
     """
 
     def __init__(self, source: Source) -> None:

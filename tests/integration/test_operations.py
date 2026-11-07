@@ -83,3 +83,77 @@ def test_environment_flag_and_permissive_callback_cannot_bypass_real_release(dat
             raise AssertionError("must never send")
 
     assert deliver_one(database, External(), live_allowed=lambda _: True) == "cancelled"
+
+
+def test_release_checks_deployed_config_tenant_and_kill(database, monkeypatch):
+    """Fabricated CI rows exercise plumbing, never establish real release evidence."""
+    from datetime import timedelta
+
+    from sqlalchemy import text
+
+    from tailwatch.operations.release import ReleaseManifest, activate, register_release
+
+    now = datetime.now(UTC)
+    digest = uuid4().hex * 2
+    model = uuid4().hex * 2
+    tenant = uuid4()
+    config = uuid4().hex * 2
+    sessions = tuple(now.date() - timedelta(days=i) for i in range(9, -1, -1))
+    runs = []
+    with database.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO research_experiments(experiment_hash,manifest) "
+                "VALUES(:id,CAST(:body AS jsonb))"
+            ),
+            {"id": digest, "body": '{"synthetic":false,"note":"fabricated integration test only"}'},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO sealed_test_access(dataset_hash,experiment_hash,model_hash) "
+                "VALUES(:id,:id,:model)"
+            ),
+            {"id": digest, "model": model},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO research_evaluations(dataset_hash,result) "
+                "VALUES(:id,CAST(:body AS jsonb))"
+            ),
+            {"id": digest, "body": '{"decision":"PASS","note":"fabricated integration test only"}'},
+        )
+    for session in sessions:
+        run = claim_run(database, session, config, False)
+        assert run
+        finish_run(database, run, {"ready": True})
+        runs.append(run)
+    manifest = ReleaseManifest(
+        application_commit="a" * 40,
+        model_hash=model,
+        dataset_hash=digest,
+        config_hash=config,
+        gate_evidence={f"G{i}": "fabricated CI evidence" for i in range(5)},
+        operator="test",
+        rights_valid_until=now + timedelta(days=1),
+        expires_at=now + timedelta(days=1),
+        rollout_limit=1,
+        daily_email_limit=1,
+        shadow_run_ids=tuple(runs),
+        trading_sessions=sessions,
+        approved_tenants=(tenant,),
+        restore_drill_digest="a" * 64,
+    )
+    identifier = register_release(database, manifest)
+    with pytest.raises(ValueError, match="deployed"):
+        activate(database, identifier, "test")
+    monkeypatch.setenv("TAILWATCH_APPLICATION_COMMIT", manifest.application_commit)
+    monkeypatch.setenv("TAILWATCH_CONFIG_HASH", config)
+    try:
+        activate(database, identifier, "test")
+        assert allowed_model(database, tenant) == model
+        assert allowed_model(database, uuid4()) is None
+        monkeypatch.setenv("TAILWATCH_CONFIG_HASH", "wrong")
+        assert allowed_model(database, tenant) is None
+    finally:
+        kill(database, "test-cleanup")
+    assert allowed_model(database, tenant) is None
