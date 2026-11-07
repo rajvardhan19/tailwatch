@@ -55,6 +55,12 @@ class FeatureRun(Contract):
 
     @model_validator(mode="after")
     def complete_directions(self) -> "FeatureRun":
+        if not self.synthetic and (not self.input_fact_ids or not self.source_snapshots):
+            raise ValueError("real feature runs require exact source evidence")
+        if len(set(self.input_fact_ids)) != len(self.input_fact_ids) or len(
+            set(self.source_snapshots)
+        ) != len(self.source_snapshots):
+            raise ValueError("duplicate manifest references")
         expected = {(a, b) for a in self.universe for b in self.universe if a != b}
         actual = [(p.visitor, p.host) for p in self.pairs]
         if (

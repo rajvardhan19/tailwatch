@@ -3,7 +3,7 @@
 import math
 from datetime import datetime
 
-from pydantic import AwareDatetime, Field
+from pydantic import AwareDatetime, Field, model_validator
 
 from tailwatch.research.datasets import Example, eligible
 from tailwatch.research.experiments import Experiment
@@ -29,6 +29,26 @@ class LogisticArtifact(Contract):
     calibration: tuple[float, float] | None = None
     synthetic: bool
 
+    @model_validator(mode="after")
+    def valid_parameters(self) -> "LogisticArtifact":
+        size = len(self.feature_names)
+        values = (
+            *self.means,
+            *self.scales,
+            *self.coefficients,
+            self.intercept,
+            *(self.calibration or ()),
+        )
+        if (
+            not size
+            or len(set(self.feature_names)) != size
+            or any(len(v) != size for v in (self.means, self.scales, self.coefficients))
+            or any(not math.isfinite(v) for v in values)
+            or any(v <= 0 for v in self.scales)
+        ):
+            raise ValueError("invalid model parameters")
+        return self
+
     def explain(self, values: dict[str, float]) -> tuple[float, dict[str, float]]:
         if set(values) != set(self.feature_names) or any(
             not math.isfinite(v) for v in values.values()
@@ -40,7 +60,10 @@ class LogisticArtifact(Contract):
                 self.feature_names, self.coefficients, self.means, self.scales, strict=True
             )
         }
-        return self.intercept + sum(terms.values()), terms
+        logit = self.intercept + sum(terms.values())
+        if not math.isfinite(logit) or any(not math.isfinite(v) for v in terms.values()):
+            raise ValueError("prediction arithmetic overflow")
+        return logit, terms
 
     def predict(self, values: dict[str, float]) -> float:
         logit, _ = self.explain(values)

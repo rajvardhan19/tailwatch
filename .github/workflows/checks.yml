@@ -66,3 +66,33 @@ jobs:
       - run: uv run --locked alembic downgrade base
       - run: uv run --locked alembic upgrade head
       - run: uv run --locked pytest tests/integration
+      - name: Backup and restore isolated synthetic database
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker exec "$POSTGRES_CONTAINER" pg_dump -U tailwatch -Fc tailwatch_test > "$RUNNER_TEMP/tailwatch.dump"
+          docker exec "$POSTGRES_CONTAINER" createdb -U tailwatch tailwatch_restore_test
+          docker exec -i "$POSTGRES_CONTAINER" pg_restore --exit-on-error -U tailwatch -d tailwatch_restore_test < "$RUNNER_TEMP/tailwatch.dump"
+          shasum -a 256 "$RUNNER_TEMP/tailwatch.dump"
+      - name: Verify restored constraints and evidence publication
+        env:
+          TAILWATCH_TEST_DATABASE_URL: postgresql+psycopg://tailwatch:tailwatch@localhost:5432/tailwatch_restore_test
+          TAILWATCH_DATABASE_URL: postgresql+psycopg://tailwatch:tailwatch@localhost:5432/tailwatch_restore_test
+        run: uv run --locked pytest tests/integration/test_postgres.py tests/integration/test_evidence.py
+
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - run: docker build -t tailwatch:test .
+      - name: Verify packaged dashboard
+        run: |
+          docker run -d --name tailwatch-preview -p 8765:8000 tailwatch:test
+          trap 'docker logs tailwatch-preview; docker rm -f tailwatch-preview' EXIT
+          for attempt in $(seq 1 20); do
+            if curl --fail http://127.0.0.1:8765/ > /tmp/dashboard.html; then break; fi
+            sleep 1
+          done
+          grep -qi synthetic /tmp/dashboard.html
+          curl --fail http://127.0.0.1:8765/assets/app.js > /dev/null

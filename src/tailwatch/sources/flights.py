@@ -11,7 +11,7 @@ from pydantic import AwareDatetime, model_validator
 from tailwatch.db.evidence import EvidenceRepository, Fact
 from tailwatch.entities.history import Period
 from tailwatch.sources.objects import ObjectStore
-from tailwatch.sources.policy import Contract, Mode, NonEmpty, RequestBudget, Source, authorize
+from tailwatch.sources.policy import Budget, Contract, Mode, NonEmpty, Source, authorize
 
 
 class FlightLeg(Contract):
@@ -84,7 +84,7 @@ def collect_flights(
     transport: FlightTransport,
     store: ObjectStore,
     now: Callable[[], datetime],
-    budget: RequestBudget,
+    budget: Budget,
     *,
     cost_microusd: int = 0,
     max_attempts: int = 3,

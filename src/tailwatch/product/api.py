@@ -9,6 +9,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from pydantic import Field
 from sqlalchemy import Connection, Engine, text
 
+from tailwatch.operations.release import allowed_model
 from tailwatch.product.alerts import append_event, events
 from tailwatch.sources.policy import Contract, NonEmpty
 
@@ -71,7 +72,10 @@ def create_app(engine: Engine, *, production_enabled: bool = False) -> FastAPI:
 
     @app.get("/health")
     def health() -> dict[str, object]:
-        return {"status": "ok", "production_enabled": production_enabled}
+        return {
+            "status": "ok",
+            "production_enabled": bool(production_enabled and allowed_model(engine)),
+        }
 
     @app.get("/alerts")
     def alerts(
@@ -79,6 +83,7 @@ def create_app(engine: Engine, *, production_enabled: bool = False) -> FastAPI:
         limit: Annotated[int, Query(ge=1, le=100)] = 25,
         after: UUID | None = None,
     ) -> dict[str, Any]:
+        model = allowed_model(engine, principal.tenant) if production_enabled else None
         with engine.connect() as conn:
             rows = (
                 conn.execute(
@@ -88,13 +93,13 @@ def create_app(engine: Engine, *, production_enabled: bool = False) -> FastAPI:
                 SELECT kind,body,sequence FROM alert_events WHERE episode_id=a.episode_id
                 AND kind<>'outcome' ORDER BY sequence DESC LIMIT 1
               ) e ON true WHERE a.tenant_id=:tenant AND e.kind='approved'
-              AND (a.synthetic OR :production)
+              AND (a.synthetic OR a.model_hash=CAST(:production_model AS text))
               AND (CAST(:after AS uuid) IS NULL OR a.episode_id>CAST(:after AS uuid))
               ORDER BY a.episode_id LIMIT :limit
             """),
                     {
                         "tenant": principal.tenant,
-                        "production": production_enabled,
+                        "production_model": model,
                         "after": after,
                         "limit": limit + 1,
                     },
@@ -126,7 +131,7 @@ def create_app(engine: Engine, *, production_enabled: bool = False) -> FastAPI:
         with engine.connect() as conn:
             meta = conn.execute(
                 text(
-                    "SELECT synthetic FROM alert_episodes "
+                    "SELECT synthetic,model_hash FROM alert_episodes "
                     "WHERE episode_id=:id AND tenant_id=:tenant"
                 ),
                 {"id": episode, "tenant": principal.tenant},
@@ -134,7 +139,10 @@ def create_app(engine: Engine, *, production_enabled: bool = False) -> FastAPI:
             rows = events(conn, principal.tenant, episode)
         if (
             meta is None
-            or (not meta[0] and not production_enabled)
+            or (
+                not meta[0]
+                and (not production_enabled or allowed_model(engine, principal.tenant) != meta[1])
+            )
             or not any(e["kind"] == "approved" for e in rows)
         ):
             raise HTTPException(404, "Alert not found")
@@ -163,6 +171,56 @@ def create_app(engine: Engine, *, production_enabled: bool = False) -> FastAPI:
                 {"tenant": principal.tenant},
             ).scalars()
             return {"companies": [str(i) for i in ids]}
+
+    @app.get("/track-record")
+    def track_record(
+        principal: Annotated[Principal, Depends(authenticate)],
+        limit: Annotated[int, Query(ge=1, le=100)] = 25,
+        after: UUID | None = None,
+    ) -> dict[str, Any]:
+        model = allowed_model(engine, principal.tenant) if production_enabled else None
+        with engine.connect() as conn:
+            rows = (
+                conn.execute(
+                    text("""
+                SELECT a.episode_id,a.visitor,a.host,a.created_at,a.synthetic,p.body,
+                       o.body AS outcome
+                FROM alert_episodes a JOIN LATERAL (
+                    SELECT body FROM alert_events WHERE episode_id=a.episode_id
+                    AND kind='approved' ORDER BY sequence LIMIT 1
+                ) p ON true LEFT JOIN LATERAL (
+                    SELECT body FROM alert_events WHERE episode_id=a.episode_id
+                    AND kind='outcome' ORDER BY sequence DESC LIMIT 1
+                ) o ON true WHERE a.tenant_id=:tenant
+                AND (a.synthetic OR a.model_hash=CAST(:model AS text))
+                AND (CAST(:after AS uuid) IS NULL OR a.episode_id>CAST(:after AS uuid))
+                ORDER BY a.episode_id LIMIT :limit
+            """),
+                    {
+                        "tenant": principal.tenant,
+                        "model": model,
+                        "after": after,
+                        "limit": limit + 1,
+                    },
+                )
+                .mappings()
+                .all()
+            )
+        return {
+            "items": [
+                {
+                    "episode_id": str(r["episode_id"]),
+                    "visitor": str(r["visitor"]),
+                    "host": str(r["host"]),
+                    "created_at": r["created_at"].isoformat(),
+                    "synthetic": r["synthetic"],
+                    "public": r["body"].get("public", {}),
+                    "outcome": (r["outcome"] or {}).get("state", "pending"),
+                }
+                for r in rows[:limit]
+            ],
+            "next_cursor": str(rows[limit - 1]["episode_id"]) if len(rows) > limit else None,
+        }
 
     @app.put("/watchlist")
     def replace_watchlist(

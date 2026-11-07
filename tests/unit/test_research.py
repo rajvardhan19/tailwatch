@@ -194,7 +194,63 @@ def test_executable_entry_skips_prior_open_and_halts():
         )
         for i in range(10)
     ]
-    result = executable_return(sessions, dt(2023) + timedelta(hours=15), dt(2024), 5)
+    calendar = tuple(s.opened_at for s in sessions)
+    result = executable_return(
+        sessions, dt(2023) + timedelta(hours=15), dt(2024), 5, expected_opens=calendar
+    )
+    assert (
+        executable_return(
+            sessions[:3] + sessions[4:], dt(2023), dt(2024), 5, expected_opens=calendar
+        )["reason"]
+        == "missing_price_session"
+    )
+    assert (
+        executable_return(sessions, dt(2023), dt(2024), 5)["reason"] == "missing_session_calendar"
+    )
     assert result["entry"] == sessions[2].opened_at.isoformat()
     assert result["excess_return"] == pytest.approx(0.05)
     assert executable_return(sessions, dt(2023), dt(2024), 30)["status"] == "unavailable"
+
+
+def test_model_artifacts_reject_invalid_parameters_and_overflow():
+    from tailwatch.research.models import LogisticArtifact
+
+    fields = dict(
+        experiment_hash="fixture",
+        feature_names=("x",),
+        means=(0.0,),
+        scales=(1.0,),
+        coefficients=(1.0,),
+        intercept=0.0,
+        fitted_at=dt(2024),
+        l2=1.0,
+        calibration=(1.0, 0.0),
+        synthetic=True,
+    )
+    for change in (
+        {"scales": (0.0,)},
+        {"coefficients": (float("nan"),)},
+        {"means": ()},
+        {"calibration": (float("inf"), 0.0)},
+    ):
+        with pytest.raises(ValueError):
+            LogisticArtifact(**(fields | change))
+    model = LogisticArtifact(**(fields | {"coefficients": (1e308,)}))
+    with pytest.raises(ValueError, match="overflow"):
+        model.predict({"x": 1e308})
+
+
+def test_embedding_overflow_never_becomes_neutral_similarity():
+    from tailwatch.features.text_finance import Embedding, semantic_similarity
+
+    embedding = Embedding(
+        document_id="synthetic",
+        chunk_id="1",
+        revision="v1",
+        published_at=dt(2020),
+        available_at=dt(2020),
+        expires_at=dt(2025),
+        vector=(1e308, 1e308),
+        evidence="fixture",
+    )
+    assert semantic_similarity([embedding], [embedding], dt(2024)).status == Availability.AMBIGUOUS
