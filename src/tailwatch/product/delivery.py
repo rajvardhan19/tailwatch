@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import Connection, Engine, text
 
+from tailwatch.operations.release import allowed_model, reserve_live_delivery
 from tailwatch.sources.sec.client import NoRedirect
 
 
@@ -204,10 +205,15 @@ def deliver_one(engine: Engine, sender: Sender, *, live_allowed: Callable[[str],
         )
         if sender.external:
             permitted = (
-                permitted and not episode["synthetic"] and live_allowed(episode["model_hash"])
+                permitted
+                and not episode["synthetic"]
+                and live_allowed(episode["model_hash"])
+                and allowed_model(engine, episode["tenant_id"]) == episode["model_hash"]
             )
         if permitted:
             try:
+                if sender.external:
+                    reserve_live_delivery(engine, episode["tenant_id"], episode["model_hash"])
                 provider_id = sender.send(
                     destination=sub["email"],
                     subject="Tailwatch reviewed signal",

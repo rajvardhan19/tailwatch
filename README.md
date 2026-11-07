@@ -2,7 +2,7 @@
 
 Research project for evidence-linked acquisition signals from corporate aircraft activity, insider disclosures, and company text.
 
-**Status: company and SEC research pipeline implemented with synthetic validation.** Live sources are not enabled. No trained model, validated prediction accuracy, or customer alerts exist yet.
+**Status: research pipeline, guarded API, dashboard and release controls implemented with synthetic validation.** Real-data evaluation and production gates remain pending. No validated prediction accuracy or live customer alerts are claimed.
 
 - [Revised technical blueprint](docs/technical-blueprint.md): implementation contract; supersedes the original design.
 - [Commit-by-commit implementation plan](docs/implementation-plan.md): ordered changes, dependencies, acceptance checks, and release gates.
@@ -29,6 +29,10 @@ uv run --locked tailwatch fixture
 uv run --locked tailwatch inventory config/sources.fixture.json
 make check
 make test
+uv run --locked tailwatch research-demo
+uv run --locked uvicorn tailwatch.product.server:app --host 127.0.0.1 --port 8765
 ```
 
 Dependency installation needs package-index access once; these commands then run without provider credentials. `fixture` reports synthetic mode and never invents a deal probability. The root is the application checkout; any local nested `tailwatch/` clone is ignored and left untouched.
+
+Open http://127.0.0.1:8765 for the synthetic dashboard. See the [operations and release runbook](docs/runbooks/operations-release.md) for database/API setup and the [free-first stack](docs/runbooks/free-first-stack.md) for provider decisions. The default preview needs no credentials and sends no notifications.
