@@ -10,6 +10,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from tailwatch import __version__
+from tailwatch.demo import research_demo
 from tailwatch.entities.repository import read_history_fixture
 from tailwatch.sources.policy import inventory, load_manifest
 from tailwatch.sources.registry import parse_master
@@ -22,6 +23,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--version", action="version", version=__version__)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("fixture", help="show offline fixture mode status (no model scores)")
+    commands.add_parser("research-demo", help="export a deterministic synthetic feature run")
     source_inventory = commands.add_parser("inventory", help="inspect declared source feasibility")
     source_inventory.add_argument("manifest", type=Path)
     history = commands.add_parser("validate-history", help="validate dated entity fixture JSON")
@@ -38,6 +40,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     registry.add_argument("path", type=Path)
     registry.add_argument("--observed-at", required=True, type=datetime.fromisoformat)
     args = parser.parse_args(argv)
+    if args.command == "research-demo":
+        print(json.dumps(research_demo(), sort_keys=True))
     if args.command == "inspect-registry":
         try:
             archive = parse_master(
