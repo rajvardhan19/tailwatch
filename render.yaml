@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: tailwatch-research
+    runtime: docker
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: TAILWATCH_ENABLE_PRODUCTION
+        value: "0"
+      # Add a separately provisioned Neon database through Render's secret UI.
+      # Do not commit credentials. Without a database this serves the synthetic demo.
