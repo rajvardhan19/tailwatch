@@ -29,6 +29,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     job.add_argument("--objects", type=Path, required=True)
     job.add_argument("--session", type=date.fromisoformat, required=True)
     job.add_argument("--resume", action="store_true")
+    onboarding = commands.add_parser(
+        "provision-workspace", help="create local tenant and unverified destination"
+    )
+    onboarding.add_argument("--name", required=True)
+    onboarding.add_argument("--email", required=True)
+    onboarding.add_argument("--output", type=Path, required=True)
     source_inventory = commands.add_parser("inventory", help="inspect declared source feasibility")
     source_inventory.add_argument("manifest", type=Path)
     history = commands.add_parser("validate-history", help="validate dated entity fixture JSON")
@@ -45,6 +51,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     registry.add_argument("path", type=Path)
     registry.add_argument("--observed-at", required=True, type=datetime.fromisoformat)
     args = parser.parse_args(argv)
+    if args.command == "provision-workspace":
+        from sqlalchemy import create_engine
+
+        from tailwatch.product.onboarding import provision_workspace
+
+        url = os.environ.get("TAILWATCH_DATABASE_URL")
+        if not url:
+            parser.exit(2, "TAILWATCH_DATABASE_URL is required; apply migrations first\n")
+        engine = create_engine(url)
+        try:
+            print(
+                json.dumps(
+                    provision_workspace(
+                        engine, name=args.name, email=args.email, output=args.output
+                    ),
+                    sort_keys=True,
+                )
+            )
+        except (OSError, ValueError) as error:
+            parser.exit(2, f"Provisioning failed: {type(error).__name__}\n")
+        finally:
+            engine.dispose()
     if args.command == "run-fixture-job":
         from sqlalchemy import create_engine
 
