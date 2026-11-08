@@ -1,0 +1,322 @@
+{
+  "examples": [
+    {
+      "at": "2020-01-01T00:00:00Z",
+      "episode_id": "00000000-0000-0000-0000-000000004ee8",
+      "features_known_at": "2020-01-01T00:00:00Z",
+      "label": {
+        "announcement_at": null,
+        "deal_id": null,
+        "known_at": "2020-06-29T00:00:00Z",
+        "state": "negative"
+      },
+      "pair": {
+        "features": {
+          "buying": {
+            "evidence": [],
+            "reason": null,
+            "status": "observed",
+            "value": 2.0,
+            "version": "signals-v1"
+          },
+          "flight": {
+            "evidence": [],
+            "reason": null,
+            "status": "observed",
+            "value": -2.0,
+            "version": "signals-v1"
+          }
+        },
+        "host": "00000000-0000-0000-0000-000000000002",
+        "visitor": "00000000-0000-0000-0000-000000000001"
+      },
+      "sample_weight": 1.0
+    },
+    {
+      "at": "2020-01-02T00:00:00Z",
+      "episode_id": "00000000-0000-0000-0000-000000004ee9",
+      "features_known_at": "2020-01-02T00:00:00Z",
+      "label": {
+        "announcement_at": null,
+        "deal_id": null,
+        "known_at": "2020-06-30T00:00:00Z",
+        "state": "negative"
+      },
+      "pair": {
+        "features": {
+          "buying": {
+            "evidence": [],
+            "reason": null,
+            "status": "observed",
+            "value": 1.0,
+            "version": "signals-v1"
+          },
+          "flight": {
+            "evidence": [],
+            "reason": null,
+            "status": "observed",
+            "value": -1.0,
+            "version": "signals-v1"
+          }
+        },
+        "host": "00000000-0000-0000-0000-000000000002",
+        "visitor": "00000000-0000-0000-0000-000000000001"
+      },
+      "sample_weight": 1.0
+    },
+    {
+      "at": "2020-01-03T00:00:00Z",
+      "episode_id": "00000000-0000-0000-0000-000000004eea",
+      "features_known_at": "2020-01-03T00:00:00Z",
+      "label": {
+        "announcement_at": null,
+        "deal_id": "00000000-0000-0000-0000-0000000007e4",
+        "known_at": "2020-07-01T00:00:00Z",
+        "state": "positive"
+      },
+      "pair": {
+        "features": {
+          "buying": {
+            "evidence": [],
+            "reason": null,
+            "status": "observed",
+            "value": -1.0,
+            "version": "signals-v1"
+          },
+          "flight": {
+            "evidence": [],
+            "reason": null,
+            "status": "observed",
+            "value": 1.0,
+            "version": "signals-v1"
+          }
+        },
+        "host": "00000000-0000-0000-0000-000000000002",
+        "visitor": "00000000-0000-0000-0000-000000000001"
+      },
+      "sample_weight": 1.0
+    },
+    {
+      "at": "2020-01-04T00:00:00Z",
+      "episode_id": "00000000-0000-0000-0000-000000004eeb",
+      "features_known_at": "2020-01-04T00:00:00Z",
+      "label": {
+        "announcement_at": null,
+        "deal_id": "00000000-0000-0000-0000-0000000007e4",
+        "known_at": "2020-07-02T00:00:00Z",
+        "state": "positive"
+      },
+      "pair": {
+        "features": {
+          "buying": {
+            "evidence": [],
+            "reason": null,
+            "status": "observed",
+            "value": -2.0,
+            "version": "signals-v1"
+          },
+          "flight": {
+            "evidence": [],
+            "reason": null,
+            "status": "observed",
+            "value": 2.0,
+            "version": "signals-v1"
+          }
+        },
+        "host": "00000000-0000-0000-0000-000000000002",
+        "visitor": "00000000-0000-0000-0000-000000000001"
+      },
+      "sample_weight": 1.0
+    },
+    {
+      "at": "2021-01-01T00:00:00Z",
+      "episode_id": "00000000-0000-0000-0000-000000004ef2",
+      "features_known_at": "2021-01-01T00:00:00Z",
+      "label": {
+        "announcement_at": null,
+        "deal_id": null,
+        "known_at": "2021-06-30T00:00:00Z",
+        "state": "negative"
+      },
+      "pair": {
+        "features": {
+          "buying": {
+            "evidence": [],
+            "reason": null,
+            "status": "observed",
+            "value": 2.0,
+            "version": "signals-v1"
+          },
+          "flight": {
+            "evidence": [],
+            "reason": null,
+            "status": "observed",
+            "value": -2.0,
+            "version": "signals-v1"
+          }
+        },
+        "host": "00000000-0000-0000-0000-000000000002",
+        "visitor": "00000000-0000-0000-0000-000000000001"
+      },
+      "sample_weight": 1.0
+    },
+    {
+      "at": "2021-01-02T00:00:00Z",
+      "episode_id": "00000000-0000-0000-0000-000000004ef3",
+      "features_known_at": "2021-01-02T00:00:00Z",
+      "label": {
+        "announcement_at": null,
+        "deal_id": null,
+        "known_at": "2021-07-01T00:00:00Z",
+        "state": "negative"
+      },
+      "pair": {
+        "features": {
+          "buying": {
+            "evidence": [],
+            "reason": null,
+            "status": "observed",
+            "value": 1.0,
+            "version": "signals-v1"
+          },
+          "flight": {
+            "evidence": [],
+            "reason": null,
+            "status": "observed",
+            "value": -1.0,
+            "version": "signals-v1"
+          }
+        },
+        "host": "00000000-0000-0000-0000-000000000002",
+        "visitor": "00000000-0000-0000-0000-000000000001"
+      },
+      "sample_weight": 1.0
+    },
+    {
+      "at": "2021-01-03T00:00:00Z",
+      "episode_id": "00000000-0000-0000-0000-000000004ef4",
+      "features_known_at": "2021-01-03T00:00:00Z",
+      "label": {
+        "announcement_at": null,
+        "deal_id": "00000000-0000-0000-0000-0000000007e5",
+        "known_at": "2021-07-02T00:00:00Z",
+        "state": "positive"
+      },
+      "pair": {
+        "features": {
+          "buying": {
+            "evidence": [],
+            "reason": null,
+            "status": "observed",
+            "value": -1.0,
+            "version": "signals-v1"
+          },
+          "flight": {
+            "evidence": [],
+            "reason": null,
+            "status": "observed",
+            "value": 1.0,
+            "version": "signals-v1"
+          }
+        },
+        "host": "00000000-0000-0000-0000-000000000002",
+        "visitor": "00000000-0000-0000-0000-000000000001"
+      },
+      "sample_weight": 1.0
+    },
+    {
+      "at": "2021-01-04T00:00:00Z",
+      "episode_id": "00000000-0000-0000-0000-000000004ef5",
+      "features_known_at": "2021-01-04T00:00:00Z",
+      "label": {
+        "announcement_at": null,
+        "deal_id": "00000000-0000-0000-0000-0000000007e5",
+        "known_at": "2021-07-03T00:00:00Z",
+        "state": "positive"
+      },
+      "pair": {
+        "features": {
+          "buying": {
+            "evidence": [],
+            "reason": null,
+            "status": "observed",
+            "value": -2.0,
+            "version": "signals-v1"
+          },
+          "flight": {
+            "evidence": [],
+            "reason": null,
+            "status": "observed",
+            "value": 2.0,
+            "version": "signals-v1"
+          }
+        },
+        "host": "00000000-0000-0000-0000-000000000002",
+        "visitor": "00000000-0000-0000-0000-000000000001"
+      },
+      "sample_weight": 1.0
+    }
+  ],
+  "expected_episodes": [
+    "00000000-0000-0000-0000-000000004ee8",
+    "00000000-0000-0000-0000-000000004ee9",
+    "00000000-0000-0000-0000-000000004eea",
+    "00000000-0000-0000-0000-000000004eeb",
+    "00000000-0000-0000-0000-000000004ef2",
+    "00000000-0000-0000-0000-000000004ef3",
+    "00000000-0000-0000-0000-000000004ef4",
+    "00000000-0000-0000-0000-000000004ef5"
+  ],
+  "experiment": {
+    "alert_budget": 10,
+    "bootstrap_draws": 200,
+    "calibration": {
+      "end": "2021-01-11T00:00:00Z",
+      "start": "2021-01-01T00:00:00Z"
+    },
+    "cooldown_days": 180,
+    "feature_version": "v1",
+    "lift_target": 2.0,
+    "minimum_alerts": 10,
+    "minimum_deals": 5,
+    "name": "fixture",
+    "precision_target": 0.5,
+    "rationale": "test only",
+    "seed": 42,
+    "synthetic": true,
+    "test": {
+      "end": "2023-01-11T00:00:00Z",
+      "start": "2023-01-01T00:00:00Z"
+    },
+    "threshold": {
+      "end": "2022-01-11T00:00:00Z",
+      "start": "2022-01-01T00:00:00Z"
+    },
+    "train": {
+      "end": "2020-01-11T00:00:00Z",
+      "start": "2020-01-01T00:00:00Z"
+    },
+    "universe_digest": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "features": [
+    "flight",
+    "buying"
+  ],
+  "fitted_at": "2022-01-01T00:00:00Z",
+  "reference": {
+    "buying": -1.0,
+    "flight": 1.0
+  },
+  "variants": {
+    "flight": [
+      "flight"
+    ],
+    "full": [
+      "flight",
+      "buying"
+    ],
+    "insider": [
+      "buying"
+    ]
+  }
+}
