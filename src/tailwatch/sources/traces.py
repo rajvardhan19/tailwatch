@@ -161,9 +161,7 @@ def infer_legs(
                         destination=airport,
                         departed_at=departure.at,
                         arrived_at=point.at,
-                        available_at=max(
-                            p.available_at for p in ordered if departure.at <= p.at <= point.at
-                        ),
+                        available_at=known_at,
                         timing="inferred",
                         evidence="trace-v1:" + ",".join(sorted(evidence)),
                     )
