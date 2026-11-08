@@ -38,3 +38,11 @@ Dependency installation needs package-index access once; these commands then run
 Open http://127.0.0.1:8765 for the synthetic dashboard. See the [operations and release runbook](docs/runbooks/operations-release.md) for database/API setup and the [free-first stack](docs/runbooks/free-first-stack.md) for provider decisions. The default preview needs no credentials and sends no notifications.
 
 Additional operator commands: `tailwatch run-fixture-job --help` runs checkpointed synthetic stages; `tailwatch provision-workspace --help` creates a tenant and unverified destination in a configured local database. Both require migrations through `0008`. They do not activate production.
+
+Run the bundled synthetic development report without credentials:
+
+```sh
+uv run --locked tailwatch research-report config/research.synthetic.json --objects .data/reports
+```
+
+The command retains its input, grouped uncertainty and ablation artifacts and prints their content-addressed report hash. It cannot promote a model. `uv run --locked tailwatch release-status` inspects release eligibility once a database is configured.

@@ -202,6 +202,8 @@ def activate(engine: Engine, release_hash: str, actor: str) -> None:
 
 
 def kill(engine: Engine, actor: str) -> None:
+    if not actor.strip():
+        raise ValueError("operator identity required")
     with engine.begin() as conn:
         conn.execute(text("UPDATE runtime_control SET killed=true WHERE singleton"))
         conn.execute(

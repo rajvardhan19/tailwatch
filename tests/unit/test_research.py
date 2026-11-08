@@ -238,6 +238,9 @@ def test_model_artifacts_reject_invalid_parameters_and_overflow():
     model = LogisticArtifact(**(fields | {"coefficients": (1e308,)}))
     with pytest.raises(ValueError, match="overflow"):
         model.predict({"x": 1e308})
+    calibrated = LogisticArtifact(**(fields | {"calibration": (1e308, 0.0)}))
+    with pytest.raises(ValueError, match="calibration arithmetic overflow"):
+        calibrated.predict({"x": 1e308})
 
 
 def test_embedding_overflow_never_becomes_neutral_similarity():

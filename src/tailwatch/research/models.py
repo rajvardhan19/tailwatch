@@ -70,7 +70,10 @@ class LogisticArtifact(Contract):
         if self.calibration is None:
             raise ValueError("candidate is not calibrated")
         slope, intercept = self.calibration
-        return sigmoid(slope * logit + intercept)
+        calibrated = slope * logit + intercept
+        if not math.isfinite(calibrated):
+            raise ValueError("calibration arithmetic overflow")
+        return sigmoid(calibrated)
 
 
 def _fit(
