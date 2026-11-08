@@ -3,6 +3,7 @@
 import argparse
 import csv
 import json
+import os
 from collections.abc import Sequence
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -24,6 +25,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("fixture", help="show offline fixture mode status (no model scores)")
     commands.add_parser("research-demo", help="export a deterministic synthetic feature run")
+    job = commands.add_parser("run-fixture-job", help="run/resume checkpointed synthetic research")
+    job.add_argument("--objects", type=Path, required=True)
+    job.add_argument("--session", type=date.fromisoformat, required=True)
+    job.add_argument("--resume", action="store_true")
     source_inventory = commands.add_parser("inventory", help="inspect declared source feasibility")
     source_inventory.add_argument("manifest", type=Path)
     history = commands.add_parser("validate-history", help="validate dated entity fixture JSON")
@@ -40,6 +45,37 @@ def main(argv: Sequence[str] | None = None) -> int:
     registry.add_argument("path", type=Path)
     registry.add_argument("--observed-at", required=True, type=datetime.fromisoformat)
     args = parser.parse_args(argv)
+    if args.command == "run-fixture-job":
+        from sqlalchemy import create_engine
+
+        from tailwatch.operations.pipeline import Stage, run_pipeline
+        from tailwatch.sources.objects import LocalObjectStore
+
+        url = os.environ.get("TAILWATCH_DATABASE_URL")
+        if not url:
+            parser.exit(2, "TAILWATCH_DATABASE_URL is required; apply migrations first\n")
+        engine = create_engine(url)
+        try:
+            result = run_pipeline(
+                engine,
+                LocalObjectStore(args.objects),
+                session=args.session,
+                stages=(
+                    Stage(
+                        "features", lambda _: json.dumps(research_demo(), sort_keys=True).encode()
+                    ),
+                ),
+                code_revision=__version__ + ":research-demo-v1",
+                configuration={},
+                synthetic=True,
+                health=lambda _: {"ready": True, "synthetic": True},
+                resume=args.resume,
+            )
+            print(json.dumps(result, sort_keys=True))
+        except (OSError, ValueError) as error:
+            parser.exit(2, f"Fixture job failed: {type(error).__name__}\n")
+        finally:
+            engine.dispose()
     if args.command == "research-demo":
         print(json.dumps(research_demo(), sort_keys=True))
     if args.command == "inspect-registry":

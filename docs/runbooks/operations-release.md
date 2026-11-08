@@ -44,3 +44,20 @@ Release manifests now require `calendar_valid_through` covering their entire lif
 Live SEC, flight and ADSB.lol adapters require a budget whose source configuration matches the request. `RequestBudget` is for fixtures only; passing it for a live source fails before transport access. Live workers inject `DurableBudget(engine, source, utc_day)`. Custom budget implementations must honor both `validate_for(source)` and `reserve(cost_microusd)`.
 
 The durable ledger uses the database UTC date to reject yesterday's or future-dated budget before reserving. Recreate the budget for the new UTC day at rollover; never replay requests against yesterday's unused quota. Concurrent workers and restarts share the same source/day count and cost limits. A changed daily limit is rejected rather than silently resetting the ledger. Retries remain charged even when provider access fails.
+
+## Checkpointed pipeline execution
+
+Migration `0008` adds immutable stage checkpoints and pipeline attempt events. `run_pipeline` freezes stage order, code revision, configuration and synthetic mode into the job key. A PostgreSQL advisory lock prevents concurrent workers from executing the same job. Every stage writes a content-addressed artifact, verifies it, and commits its checkpoint before proceeding. Resume verifies retained hashes and skips completed stages; corrupt objects invalidate the run rather than silently replaying unverified output.
+
+Stage callbacks must be deterministic artifact transformations. A crash between artifact creation and checkpoint commit may repeat the stage. Do not put external messages or other non-idempotent effects in callbacks; use the separately reconciled outbox. Failed runs require `resume=True`; interrupted running jobs can be recovered once their database connection/lock is gone. Attempt events retain error types without callback text or secrets. Recovery never counts a synthetic job toward a real release.
+
+An offline synthetic job can be exercised against the migrated local database:
+
+```sh
+uv run --locked alembic upgrade head
+uv run --locked tailwatch run-fixture-job --objects .data/objects --session 2026-11-06
+# Explicit retry after a failed attempt:
+uv run --locked tailwatch run-fixture-job --objects .data/objects --session 2026-11-06 --resume
+```
+
+Use the returned `config_hash` when reviewing that pipeline's run records. Production configuration must supply a reviewed calendar, real source transformations and truthful readiness callback, plus an external scheduler invoking the due session. The fixture command does not poll providers or send mail.
