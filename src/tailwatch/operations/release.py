@@ -19,7 +19,7 @@ class ReleaseManifest(Contract):
     model_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     dataset_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     config_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
-    schema_version: Literal["0007"] = "0007"
+    schema_version: Literal["0008"] = "0008"
     gate_evidence: dict[str, str]
     operator: NonEmpty
     rights_valid_until: AwareDatetime
