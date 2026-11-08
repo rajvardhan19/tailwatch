@@ -13,3 +13,9 @@ Evaluation freezes the first episode prediction and counts a definitive deal at 
 Returns use adjusted opens/closes and benchmark values, next executable open after alert, 5/30 observed sessions, halts and explicit unavailable exits. Callers must supply complete exchange-session price coverage (including missing/delisted records); sparse price lists must not be treated as a calendar. No real price vendor or historical returns have been validated. Lookalikes use only mature known outcomes, include failed cases, and exclude the current pair in either orientation.
 
 Return calculations require an explicit complete exchange-session calendar (`expected_opens`). Missing prices within entry discovery or the holding horizon make the result unavailable, rather than shortening a 5/30-session horizon. Prices must be available after session close.
+
+## Development uncertainty and ablations
+
+`diagnostics.grouped_uncertainty` resamples whole deal groups (or episodes without a deal ID) separately inside train and calibration partitions. Each draw refits preprocessing, regularized coefficients and calibration; test rows are excluded. Coefficient intervals use original feature units. One-class and fitting failures are counted without replacement, and fewer than 100 successful draws or an 80% success rate yields inconclusive intervals. The reference feature vector must be fixed before reviewing test outcomes. These diagnostics never authorize promotion.
+
+`fit_ablations` fits declared feature subsets on the same union-of-required-features cohort before test starts. `cohort_coverage` preserves the explicit frozen-universe denominator and reports missing/unscorable episodes. Baselines freeze the first chronological episode observation; later high scores cannot replace it, and conflicting same-time observations are rejected. Real reports still require representative data and independent review of the grouping scheme.

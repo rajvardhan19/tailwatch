@@ -50,7 +50,7 @@ def matched_baselines(
 ) -> dict[str, list[UUID]]:
     if budget < 1:
         raise ValueError("positive budget required")
-    cohort = [e for e in examples if e.pair.scorable((flight, insider))]
+    cohort = [e for e in freeze_episodes(examples) if e.pair.scorable((flight, insider))]
 
     def top(key: Callable[[Example], Any]) -> list[UUID]:
         ordered = sorted(cohort, key=key)
@@ -67,3 +67,14 @@ def matched_baselines(
         "insider": top(lambda e: (-float(e.pair.features[insider].value or 0), str(e.episode_id))),
         "random": top(lambda e: hashlib.sha256(f"{seed}:{e.episode_id}".encode()).hexdigest()),
     }
+
+
+def freeze_episodes(examples: list[Example]) -> list[Example]:
+    """Keep first chronological observation, never the best later score."""
+    first: dict[UUID, Example] = {}
+    for row in sorted(examples, key=lambda row: (row.at, str(row.episode_id))):
+        previous = first.get(row.episode_id)
+        if previous is not None and previous.at == row.at and previous != row:
+            raise ValueError("conflicting episode observations at the same timestamp")
+        first.setdefault(row.episode_id, row)
+    return list(first.values())
