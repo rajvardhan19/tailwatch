@@ -103,3 +103,29 @@ def test_grouped_bootstrap_records_failures_and_is_deterministic():
     assert result.failures["one_class"] > 0
     assert result.promotion_allowed is False
     assert result.status == "inconclusive" and result.probability_interval is None
+
+
+def test_development_report_retains_inputs_and_rejects_test_observations(tmp_path):
+    import json
+
+    from tailwatch.research.report import ReportInput, build_report
+    from tailwatch.sources.objects import LocalObjectStore
+
+    exp, rows, at = fixture()
+    request = ReportInput(
+        experiment=exp,
+        examples=tuple(rows),
+        expected_episodes={r.episode_id for r in rows},
+        features=("flight",),
+        variants={"flight": ("flight",)},
+        fitted_at=at,
+        reference={"flight": 1.0},
+    )
+    store = LocalObjectStore(tmp_path)
+    digest = build_report(request, store)
+    result = json.loads(store.get(digest))
+    assert result["promotion_allowed"] is False and result["coverage"]["missing_episodes"] == 0
+    assert json.loads(store.get(result["input_hash"]))["experiment"]["name"] == "fixture"
+    future = rows[0].model_copy(update={"at": exp.test.start})
+    with pytest.raises(ValueError, match="test observations"):
+        build_report(request.model_copy(update={"examples": (future,)}), store)

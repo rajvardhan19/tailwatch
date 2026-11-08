@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from tailwatch import __version__
 from tailwatch.demo import research_demo
 from tailwatch.entities.repository import read_history_fixture
+from tailwatch.operations import commands as operator_commands
 from tailwatch.sources.policy import inventory, load_manifest
 from tailwatch.sources.registry import parse_master
 from tailwatch.sources.sec.form4 import parse_form4
@@ -35,6 +36,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     onboarding.add_argument("--name", required=True)
     onboarding.add_argument("--email", required=True)
     onboarding.add_argument("--output", type=Path, required=True)
+    report = commands.add_parser("research-report", help="retain offline development diagnostics")
+    report.add_argument("path", type=Path)
+    report.add_argument("--objects", type=Path, required=True)
+    trace = commands.add_parser("inspect-trace", help="inspect an already authorized local archive")
+    trace.add_argument("path", type=Path)
+    trace.add_argument("--icao", required=True)
+    trace.add_argument("--available-at", type=datetime.fromisoformat, required=True)
+    trace.add_argument("--objects", type=Path, required=True)
+    operator_commands.add_commands(commands)
     source_inventory = commands.add_parser("inventory", help="inspect declared source feasibility")
     source_inventory.add_argument("manifest", type=Path)
     history = commands.add_parser("validate-history", help="validate dated entity fixture JSON")
@@ -51,6 +61,42 @@ def main(argv: Sequence[str] | None = None) -> int:
     registry.add_argument("path", type=Path)
     registry.add_argument("--observed-at", required=True, type=datetime.fromisoformat)
     args = parser.parse_args(argv)
+    if operator_commands.execute(args, parser):
+        return 0
+    if args.command in {"research-report", "inspect-trace"}:
+        from tailwatch.sources.objects import LocalObjectStore
+
+        try:
+            store = LocalObjectStore(args.objects)
+            if args.command == "research-report":
+                from tailwatch.research.report import ReportInput, build_report
+
+                digest = build_report(
+                    ReportInput.model_validate_json(args.path.read_bytes()), store
+                )
+                print(json.dumps({"report_hash": digest, "promotion_allowed": False}))
+            else:
+                from tailwatch.sources.traces import parse_trace
+
+                points = parse_trace(
+                    args.path.read_bytes(),
+                    approved_icao=args.icao,
+                    available_at=args.available_at,
+                    store=store,
+                )
+                print(
+                    json.dumps(
+                        {
+                            "points": len(points),
+                            "usable": sum(p.usable for p in points),
+                            "complete_coverage": False,
+                            "tracking_enabled": False,
+                        }
+                    )
+                )
+        except (OSError, ValueError) as error:
+            parser.exit(2, f"Offline input rejected: {type(error).__name__}\n")
+        return 0
     if args.command == "provision-workspace":
         from sqlalchemy import create_engine
 
@@ -174,7 +220,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "mode": "fixture",
                     "synthetic": True,
                     "delivery_enabled": False,
-                    "model_status": "not_implemented",
+                    "model_status": "not_activated",
                 },
                 sort_keys=True,
             )

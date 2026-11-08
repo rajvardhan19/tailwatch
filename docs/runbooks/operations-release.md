@@ -61,3 +61,7 @@ uv run --locked tailwatch run-fixture-job --objects .data/objects --session 2026
 ```
 
 Use the returned `config_hash` when reviewing that pipeline's run records. Production configuration must supply a reviewed calendar, real source transformations and truthful readiness callback, plus an external scheduler invoking the due session. The fixture command does not poll providers or send mail.
+
+## Operator release commands
+
+The CLI exposes `release-status`, `release-register MANIFEST.json`, `release-activate HASH --actor OPERATOR`, and `release-kill --actor OPERATOR`. These use `TAILWATCH_DATABASE_URL`; registration does not activate, and activation uses the same schema/app/config/model/provenance/readiness/rights checks as the API. Status reports the kill switch and eligible model, not credentials. Database/gate failures exit nonzero with a redacted error category. Empty actor identities are rejected. These commands have not been used to activate a real release.

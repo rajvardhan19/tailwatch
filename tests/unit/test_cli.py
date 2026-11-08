@@ -13,7 +13,7 @@ def test_fixture_cli_is_explicitly_synthetic() -> None:
     payload = json.loads(result.stdout)
     assert payload["synthetic"] is True
     assert payload["delivery_enabled"] is False
-    assert payload["model_status"] == "not_implemented"
+    assert payload["model_status"] == "not_activated"
 
 
 def test_help_needs_no_credentials() -> None:
