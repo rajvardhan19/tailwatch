@@ -5,6 +5,7 @@ COPY src ./src
 RUN pip install --no-cache-dir uv==0.11.15 && uv sync --locked --no-dev
 COPY migrations ./migrations
 COPY alembic.ini ./
+COPY config/research.synthetic.json ./config/research.synthetic.json
 RUN useradd --uid 10001 --create-home tailwatch && chown -R tailwatch:tailwatch /app
 USER tailwatch
 ENV PATH="/app/.venv/bin:$PATH"
