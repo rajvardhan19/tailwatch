@@ -20,9 +20,9 @@ Updated November 8, 2026. The roadmap remains the full target; this file disting
 | C13–C14 | Bounded flight/trace imports, raw retention, conservative ground-air-ground inference, coverage-aware visits and office attribution | ADSB.lol raw state adapter is a research candidate; real labeled-trace validation and coverage remain pending |
 | C15–C18 | Deterministic travel, insider, silence, text/financial features; immutable input/run manifests | Real reference inputs, embeddings and exposure validation; synthetic CLI is not a predictive model |
 | C19–C20 | Mature deal labels, frozen experiments, embargoes and matched baseline cohorts | Licensed labels, preregistered real sample sizes and untouched test data |
-| C21–C23 | Logistic candidates, calibration, signed explanations, grouped refit uncertainty, matched-cohort ablations/coverage and sealed episode evaluation | Real training/validation, empirical ablation and uncertainty reports; G3 not established |
+| C21–C23 | Logistic candidates, calibration, signed explanations, grouped refit uncertainty, matched-cohort ablations/coverage and sealed episode evaluation bound to exact model/features/labels | Real training/validation, empirical ablation and uncertainty reports; G3 not established |
 | C24 | Executable-session returns and mature historical neighbors | Complete adjusted-price/calendar data and measured return results |
-| C25–C26 | Immutable alert events, canonical episodes, review transitions, evidence-bound claims and checkpoints | Human review operations and independently controlled checkpoint storage |
+| C25–C26 | Timestamp/metadata-bound alert hashes, verified independent checkpoints, canonical episodes, review transitions, evidence-bound claims and checkpoints | Human review operations and independently controlled checkpoint storage |
 | C27–C28 | Tenant-scoped API, keys, watchlists, public history/track record, operator provisioning, recipient verification/unsubscribe, verified subscriptions and durable outbox | Trusted verification-message dispatch, verified sender/domain, provider reconciliation and real notification configuration |
 | C29 | Responsive dashboard, synthetic demo, evidence/history dialogs, watchlists and connected API mode | Real approved alerts remain unavailable until release gates pass |
 | C30 | Source-bound durable budgets with UTC rollover enforcement, checkpointed/resumable jobs, calendar deadlines, readiness checks, isolated CI restore drill and Docker packaging | Real provider stage wiring and scheduler deployment, production monitoring destinations, independent backups and ten real shadow sessions |
@@ -33,3 +33,12 @@ The software foundations across C00–C31 are implemented. This is not a claim t
 `research-demo` computes deterministic synthetic features with no probability and an INCONCLUSIVE evaluation status. The browser dashboard starts without credentials. Real API output and external email require an active evidence-backed release; an environment flag or permissive sender callback cannot bypass it. No live ingestion, production deployment, paid service, or external notification has been enabled.
 
 The free-first research choices and their limitations are recorded in [free-first stack](runbooks/free-first-stack.md). See [operations and release](runbooks/operations-release.md) for startup, recovery and deployment gates.
+
+
+## Completion reconciliation — November 8, 2026
+
+The original C00–C31 sequence has implementation coverage, with follow-up PRs closing concrete gaps found during review. Research diagnostics, checkpointed pipeline execution, historical trace conversion, operator/recipient onboarding, alert integrity and exact sealed model/data provenance are now implemented and tested.
+
+This is not an end-to-end live production release. Remaining work includes real-source acquisitions and domain-specific reconciliation, mapping approved providers into scheduled production stages, verified email dispatch configuration, monitoring/backup deployment and measured production performance. Historical trace parsing and generic pipeline recovery do not prove live source completeness. Optional production spatial indexing awaits actual scale measurements. These deployment/integration tasks must stay visible rather than being represented as completed by fixture tests.
+
+G0–G5 remain unsatisfied: obtain reviewed rights and coverage, curate/validate real reference and label data, fit and evaluate on untouched real data, perform independent restore review, and accumulate ten real consecutive trading-session shadow runs. No test fixture, including explicitly fabricated release-gate integration rows, is evidence for those gates. There are no real model or launch claims in this repository.

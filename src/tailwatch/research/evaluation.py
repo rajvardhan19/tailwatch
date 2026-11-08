@@ -11,7 +11,9 @@ from uuid import UUID
 from pydantic import AwareDatetime, Field
 from sqlalchemy import Engine, text
 
+from tailwatch.research.datasets import Example, freeze_episodes
 from tailwatch.research.experiments import Experiment
+from tailwatch.research.models import LogisticArtifact
 from tailwatch.sources.policy import Contract
 
 
@@ -40,6 +42,7 @@ class Evaluation(Contract):
     calibration_bins: tuple[dict[str, float], ...]
     one_class_bootstrap_draws: int
     reason: str
+    provenance_verified: bool = False
 
 
 def evaluate(
@@ -181,6 +184,54 @@ def register_experiment(engine: Engine, experiment: Experiment) -> None:
         )
 
 
+def artifact_predictions(
+    examples: list[Example], artifact: LogisticArtifact, experiment: Experiment, as_of: datetime
+) -> list[Prediction]:
+    if (
+        artifact.experiment_hash != experiment.digest()
+        or artifact.synthetic != experiment.synthetic
+        or artifact.fitted_at >= experiment.test.start
+    ):
+        raise ValueError("model does not match registered pre-test experiment")
+    if not experiment.test.end:
+        raise ValueError("bounded test partition required")
+    output = []
+    for row in freeze_episodes(examples):
+        if (
+            not experiment.test.start <= row.at < experiment.test.end
+            or row.features_known_at > row.at
+            or not row.pair.scorable(artifact.feature_names)
+            or row.label.state not in {"positive", "negative"}
+            or row.label.known_at is None
+            or row.label.known_at > as_of
+        ):
+            raise ValueError("sealed examples must be mature, point-in-time and scorable")
+        output.append(
+            Prediction(
+                episode_id=row.episode_id,
+                at=row.at,
+                probability=artifact.predict(
+                    {f: float(row.pair.features[f].value) for f in artifact.feature_names}  # type: ignore[arg-type]
+                ),
+                positive=row.label.state == "positive",
+                deal_id=row.label.deal_id,
+                announcement_at=row.label.announcement_at,
+                label_known_at=row.label.known_at,
+            )
+        )
+    return output
+
+
+def feature_commitment(examples: list[Example]) -> str:
+    rows = [
+        row.model_dump(mode="json")
+        for row in sorted(examples, key=lambda e: (e.at, str(e.episode_id)))
+    ]
+    return hashlib.sha256(
+        json.dumps(rows, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+    ).hexdigest()
+
+
 def evaluate_sealed(
     engine: Engine,
     experiment: Experiment,
@@ -192,6 +243,8 @@ def evaluate_sealed(
     baseline_precision: float,
     eligible_deals: int,
     as_of: datetime,
+    artifact: LogisticArtifact | None = None,
+    examples: list[Example] | None = None,
 ) -> Evaluation:
     # Dataset commitment excludes model scores. Independent release reviewers must
     # match this commitment to the frozen full feature/label artifact.
@@ -206,6 +259,16 @@ def evaluate_sealed(
         for p in predictions
     )
     actual = hashlib.sha256(json.dumps(labels, separators=(",", ":")).encode()).hexdigest()
+    verified = artifact is not None and examples is not None
+    if (artifact is None) != (examples is None):
+        raise ValueError("model artifact and feature dataset must be supplied together")
+    if artifact is not None and examples is not None:
+        if hashlib.sha256(artifact.model_dump_json().encode()).hexdigest() != model_hash:
+            raise ValueError("sealed model artifact hash mismatch")
+        generated = artifact_predictions(examples, artifact, experiment, as_of)
+        if sorted(predictions, key=lambda p: (p.at, str(p.episode_id))) != generated:
+            raise ValueError("predictions do not match sealed model and features")
+        actual = feature_commitment(examples)
     if actual != dataset_hash:
         raise ValueError("sealed label commitment mismatch")
     with engine.connect() as conn:
@@ -241,6 +304,10 @@ def evaluate_sealed(
         eligible_deals=eligible_deals,
         as_of=as_of,
     )
+    changes: dict[str, object] = {"provenance_verified": verified}
+    if not verified and result.decision == "PASS":
+        changes.update(decision="INCONCLUSIVE", reason="unverified_model_data_provenance")
+    result = Evaluation.model_validate(result.model_dump() | changes)
     with engine.begin() as conn:
         conn.execute(
             text(

@@ -123,7 +123,13 @@ def test_release_checks_deployed_config_tenant_and_kill(database, monkeypatch):
                 "INSERT INTO research_evaluations(dataset_hash,result) "
                 "VALUES(:id,CAST(:body AS jsonb))"
             ),
-            {"id": digest, "body": '{"decision":"PASS","note":"fabricated integration test only"}'},
+            {
+                "id": digest,
+                "body": (
+                    '{"decision":"PASS","provenance_verified":true,'
+                    '"note":"fabricated integration test only"}'
+                ),
+            },
         )
     for session in sessions:
         run = claim_run(database, session, config, False)

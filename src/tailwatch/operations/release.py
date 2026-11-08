@@ -83,6 +83,7 @@ def _validate(conn: Connection, manifest: ReleaseManifest) -> None:
     if (
         evaluation is None
         or evaluation["result"].get("decision") != "PASS"
+        or evaluation["result"].get("provenance_verified") is not True
         or evaluation["manifest"].get("synthetic") is not False
         or evaluation["model_hash"] != manifest.model_hash
     ):
