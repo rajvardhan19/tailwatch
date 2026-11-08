@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 import secrets
 from collections.abc import Callable
 from datetime import datetime
@@ -59,7 +60,23 @@ class ResendSender:
 
 
 def subscribe(conn: Connection, tenant: UUID, email: str) -> tuple[UUID, str, str]:
-    if len(email) > 254 or email.count("@") != 1 or any(c.isspace() for c in email):
+    local, separator, domain = email.rpartition("@")
+    labels = domain.split(".")
+    if (
+        len(email) > 254
+        or not separator
+        or not 1 <= len(local) <= 64
+        or not re.fullmatch(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+", local)
+        or local.startswith(".")
+        or local.endswith(".")
+        or ".." in local
+        or len(labels) < 2
+        or any(
+            not 1 <= len(label) <= 63
+            or not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?", label)
+            for label in labels
+        )
+    ):
         raise ValueError("invalid email destination")
     identifier, verify, unsubscribe = uuid4(), secrets.token_urlsafe(32), secrets.token_urlsafe(32)
     conn.execute(
@@ -85,7 +102,9 @@ def verify_subscription(conn: Connection, identifier: UUID, token: str) -> bool:
     row = conn.execute(
         text(
             "UPDATE subscriptions SET verified=true WHERE subscription_id=:id "
-            "AND verification_hash=:hash AND active RETURNING subscription_id"
+            "AND verification_hash=:hash AND active AND NOT verified "
+            "AND created_at > clock_timestamp() - interval '24 hours' "
+            "RETURNING subscription_id"
         ),
         {"id": identifier, "hash": hashlib.sha256(token.encode()).hexdigest()},
     ).first()

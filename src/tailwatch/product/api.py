@@ -33,6 +33,10 @@ class WatchlistInput(Contract):
     companies: tuple[UUID, ...] = Field(max_length=100)
 
 
+class SubscriptionToken(Contract):
+    token: str = Field(min_length=32, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
+
+
 class ReviewInput(Contract):
     kind: Literal["review", "approved", "vetoed", "superseded"]
     note: NonEmpty = Field(max_length=2000)
@@ -69,6 +73,65 @@ def create_app(engine: Engine, *, production_enabled: bool = False) -> FastAPI:
         if principal.scope != "analyst":
             raise HTTPException(403, "Analyst authorization required")
         return principal
+
+    @app.post("/subscriptions/{subscription}/verify")
+    def verify_destination(subscription: UUID, body: SubscriptionToken) -> dict[str, bool]:
+        from tailwatch.product.delivery import verify_subscription
+
+        with engine.begin() as conn:
+            if not verify_subscription(conn, subscription, body.token):
+                raise HTTPException(404, "Invalid, expired or consumed verification")
+        return {"verified": True}
+
+    @app.post("/subscriptions/{subscription}/unsubscribe")
+    def unsubscribe_destination(subscription: UUID, body: SubscriptionToken) -> dict[str, bool]:
+        from tailwatch.product.delivery import unsubscribe
+
+        with engine.begin() as conn:
+            if not unsubscribe(conn, subscription, body.token):
+                raise HTTPException(404, "Invalid subscription token")
+        return {"active": False}
+
+    @app.get("/subscriptions")
+    def subscriptions(
+        principal: Annotated[Principal, Depends(authenticate)],
+        limit: Annotated[int, Query(ge=1, le=100)] = 25,
+        after: UUID | None = None,
+    ) -> dict[str, Any]:
+        with engine.connect() as conn:
+            rows = (
+                conn.execute(
+                    text(
+                        "SELECT subscription_id,email,verified,active FROM subscriptions "
+                        "WHERE tenant_id=:tenant AND (CAST(:after AS uuid) IS NULL "
+                        "OR subscription_id>CAST(:after AS uuid)) "
+                        "ORDER BY subscription_id LIMIT :limit"
+                    ),
+                    {"tenant": principal.tenant, "after": after, "limit": limit + 1},
+                )
+                .mappings()
+                .all()
+            )
+        return {
+            "items": [dict(row) for row in rows[:limit]],
+            "next_cursor": str(rows[limit - 1]["subscription_id"]) if len(rows) > limit else None,
+        }
+
+    @app.delete("/subscriptions/{subscription}")
+    def disable_subscription(
+        subscription: UUID, principal: Annotated[Principal, Depends(authenticate)]
+    ) -> dict[str, bool]:
+        with engine.begin() as conn:
+            found = conn.execute(
+                text(
+                    "UPDATE subscriptions SET active=false "
+                    "WHERE subscription_id=:id AND tenant_id=:tenant RETURNING subscription_id"
+                ),
+                {"id": subscription, "tenant": principal.tenant},
+            ).first()
+            if found is None:
+                raise HTTPException(404, "Subscription not found")
+        return {"active": False}
 
     @app.get("/health")
     def health() -> dict[str, object]:
