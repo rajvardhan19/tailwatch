@@ -25,7 +25,7 @@ Updated November 8, 2026. The roadmap remains the full target; this file disting
 | C25–C26 | Immutable alert events, canonical episodes, review transitions, evidence-bound claims and checkpoints | Human review operations and independently controlled checkpoint storage |
 | C27–C28 | Tenant-scoped API, keys, watchlists, public history/track record, verified subscriptions and durable outbox | Operator onboarding, verified sender/domain, provider reconciliation and real notification configuration |
 | C29 | Responsive dashboard, synthetic demo, evidence/history dialogs, watchlists and connected API mode | Real approved alerts remain unavailable until release gates pass |
-| C30 | Durable budgets/jobs, calendar deadlines, readiness checks, isolated CI restore drill and Docker packaging | Live scheduler orchestration, production monitoring destinations, independent backups and ten real shadow sessions |
+| C30 | Source-bound durable budgets with UTC rollover enforcement, jobs, calendar deadlines, readiness checks, isolated CI restore drill and Docker packaging | Live scheduler orchestration, production monitoring destinations, independent backups and ten real shadow sessions |
 | C31 | Immutable release manifests, exact model/app/config/schema checks, tenant limits, daily delivery quota, latest-session/source-freshness guards and kill switch | G0–G4 real evidence and limited rollout authorization/configuration; production remains disabled |
 
 The software foundations across C00–C31 are implemented. This is not a claim that every empirical acceptance criterion or live integration is complete. Each remaining dependency above is part of the roadmap, not a successful result inferred from fixtures. The detailed commit plan remains the target contract.

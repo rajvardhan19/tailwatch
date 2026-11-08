@@ -123,3 +123,20 @@ def test_403_does_not_retry(tmp_path):
     with pytest.raises(ValueError, match="403"):
         client.get("https://www.sec.gov/Archives/edgar/test")
     assert len(transport.calls) == 1
+
+
+def test_live_sec_client_cannot_default_to_restartable_memory_budget(tmp_path):
+    from tailwatch.sources.policy import PolicyDenied
+
+    source = Source.model_validate(fixture_source().model_dump() | {"kind": "live"})
+    transport = FakeTransport([])
+    with pytest.raises(PolicyDenied, match="durable"):
+        SECClient(
+            source=source,
+            mode=Mode.RESEARCH,
+            user_agent="Research test@example.invalid",
+            store=LocalObjectStore(tmp_path),
+            transport=transport,
+            record=lambda _: None,
+        )
+    assert transport.calls == []

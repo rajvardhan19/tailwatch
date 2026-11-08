@@ -105,3 +105,15 @@ def test_synthetic_inventory_does_not_claim_feasibility() -> None:
     report = inventory(load_manifest(Path("config/sources.fixture.json")), NOW)
     assert '"g0": "not_established"' in report
     assert "no measured real-data coverage sample" in report
+
+
+def test_memory_budget_rejects_live_sources_and_other_configurations():
+    fixture = source()
+    budget = RequestBudget(fixture)
+    budget.validate_for(fixture)
+    other = Source.model_validate(fixture.model_dump() | {"source_id": "different"})
+    with pytest.raises(PolicyDenied, match="match"):
+        budget.validate_for(other)
+    live = Source.model_validate(fixture.model_dump() | {"kind": "live"})
+    with pytest.raises(PolicyDenied, match="durable"):
+        RequestBudget(live).validate_for(live)

@@ -24,6 +24,7 @@ def capture_state(
     if source.source_id != "adsblol" or source.kind != "live":
         raise ValueError("ADSB.lol live source required")
     authorize(source, mode=mode, capability="aircraft_states", at=at)
+    budget.validate_for(source)
     budget.reserve(0)
     request = Request(
         f"https://api.adsb.lol/v2/icao/{icao24}",

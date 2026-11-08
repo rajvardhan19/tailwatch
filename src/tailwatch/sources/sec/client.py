@@ -127,11 +127,13 @@ class SECClient:
             raise ValueError("HTTP transport cannot use fixture permissions")
         self.limiter, self.sleep, self.now = limiter, sleep, now
         self.budget: Budget = budget if budget is not None else RequestBudget(source)
+        self.budget.validate_for(source)
 
     def get(self, url: str) -> tuple[bytes, Fetch]:
         validate_url(url)
         for attempt in range(4):
             authorize(self.source, mode=self.mode, capability="sec", at=self.now())
+            self.budget.validate_for(self.source)
             self.budget.reserve(0)  # Every attempt, including a retry, consumes quota.
             self.limiter.wait()
             requested_at = self.now()

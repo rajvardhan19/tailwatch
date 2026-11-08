@@ -198,3 +198,46 @@ def test_release_checks_deployed_config_tenant_and_kill(database, monkeypatch):
     finally:
         kill(database, "test-cleanup")
     assert allowed_model(database, tenant) is None
+
+
+def test_daily_budget_rejects_wrong_day_and_configuration(database):
+    from datetime import timedelta
+
+    from sqlalchemy import text
+
+    source = Source.model_validate(
+        load_manifest(Path("config/sources.fixture.json")).sources[0].model_dump()
+        | {"source_id": "budget-" + uuid4().hex, "max_requests": 1}
+    )
+    with database.connect() as conn:
+        day = conn.execute(text("SELECT (clock_timestamp() AT TIME ZONE 'UTC')::date")).scalar_one()
+    for offset in (-1, 1):
+        with pytest.raises(PolicyDenied, match="expired or future"):
+            DurableBudget(database, source, day + timedelta(days=offset)).reserve(0)
+    budget = DurableBudget(database, source, day)
+    with pytest.raises(PolicyDenied, match="match"):
+        budget.validate_for(Source.model_validate(source.model_dump() | {"max_requests": 100}))
+    budget.validate_for(source)
+    budget.reserve(0)
+    with pytest.raises(PolicyDenied):
+        DurableBudget(database, source, day).reserve(0)
+
+
+def test_parallel_workers_share_one_daily_request_limit(database):
+    from concurrent.futures import ThreadPoolExecutor
+
+    source = Source.model_validate(
+        load_manifest(Path("config/sources.fixture.json")).sources[0].model_dump()
+        | {"source_id": "parallel-" + uuid4().hex, "max_requests": 3}
+    )
+    day = datetime.now(UTC).date()
+
+    def reserve(_):
+        try:
+            DurableBudget(database, source, day).reserve(0)
+            return True
+        except PolicyDenied:
+            return False
+
+    with ThreadPoolExecutor(max_workers=4) as workers:
+        assert sum(workers.map(reserve, range(8))) == 3
