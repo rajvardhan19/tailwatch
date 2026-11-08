@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy import Connection, text
 from sqlalchemy.exc import DBAPIError
 
+from tailwatch.db.clock import database_now
 from tailwatch.db.evidence import EvidenceRepository, Fact
 from tailwatch.domain.time import ReplayMode
 from tailwatch.sources.objects import LocalObjectStore
@@ -66,16 +67,16 @@ def test_later_correction_cannot_change_earlier_operational_replay(
     first = fact(repo, store, snapshot(repo, 1), 1)
     repo.append(first)
     repo.publish(first.snapshot_id, day(2))
-    cutoff = datetime.now(UTC)
+    cutoff = database_now(connection)
     before = repo.as_of(source_id="synthetic", cutoff=cutoff, effective_at=day(1))
     corrected = fact(repo, store, snapshot(repo, 5), 5, first)
     repo.append(corrected)
     repo.publish(corrected.snapshot_id, day(6))
     assert repo.as_of(source_id="synthetic", cutoff=cutoff, effective_at=day(1)) == before
     assert before == [first]
-    assert repo.as_of(source_id="synthetic", cutoff=datetime.now(UTC), effective_at=day(1)) == [
-        corrected
-    ]
+    assert repo.as_of(
+        source_id="synthetic", cutoff=database_now(connection), effective_at=day(1)
+    ) == [corrected]
 
 
 def test_incomplete_failed_and_late_mutation_are_rejected(
@@ -89,7 +90,7 @@ def test_incomplete_failed_and_late_mutation_are_rejected(
     incomplete = snapshot(repo, 3)
     with pytest.raises(DBAPIError, match="incomplete"), connection.begin_nested():
         repo.publish(incomplete, day(4))
-    assert repo.current_snapshot("synthetic", datetime.now(UTC)) == first.snapshot_id
+    assert repo.current_snapshot("synthetic", database_now(connection)) == first.snapshot_id
     failed = snapshot(repo, 4, expected=0)
     connection.execute(
         text("INSERT INTO parse_failures VALUES (:id, 'bad.xml', 'invalid XML')"), {"id": failed}
@@ -207,7 +208,10 @@ def test_corrected_validity_does_not_resurrect_old_revision(
     replacement = Fact.model_validate(replacement.model_dump() | {"valid_from": day(4)})
     repo.append(replacement)
     repo.publish(replacement.snapshot_id, day(6))
-    assert repo.as_of(source_id="synthetic", cutoff=datetime.now(UTC), effective_at=day(1)) == []
+    assert (
+        repo.as_of(source_id="synthetic", cutoff=database_now(connection), effective_at=day(1))
+        == []
+    )
 
 
 def test_publication_cannot_precede_review(connection: Connection, tmp_path: Path) -> None:

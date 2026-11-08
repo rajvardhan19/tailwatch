@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 
+from tailwatch.db.clock import database_now
 from tailwatch.db.evidence import EvidenceRepository, Fact
 from tailwatch.sources.objects import LocalObjectStore
 from tailwatch.sources.registry import lookup
@@ -53,12 +54,12 @@ def test_archive_publication_raw_integrity_and_prior_cutoff(connection, tmp_path
         },
     )
     append_registry(repo, store, raw, fact)
-    before = datetime.now(UTC)
+    before = database_now(connection)
     assert known_archives(repo, store, source_id=source, cutoff=before) == []
     repo.publish(batch, start)
     append_registry(repo, store, raw, fact)  # Exact retry after publication.
     assert known_archives(repo, store, source_id=source, cutoff=before) == []
-    archives = known_archives(repo, store, source_id=source, cutoff=datetime.now(UTC))
+    archives = known_archives(repo, store, source_id=source, cutoff=database_now(connection))
     assert archives[0].records[0].tail == "N123AB"
     assert archives[0].available_at > before
     from datetime import timedelta

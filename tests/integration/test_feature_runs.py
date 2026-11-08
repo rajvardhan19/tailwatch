@@ -3,6 +3,7 @@ from uuid import uuid4
 
 import pytest
 
+from tailwatch.db.clock import database_now
 from tailwatch.db.evidence import EvidenceRepository, Fact
 from tailwatch.domain.time import Availability
 from tailwatch.features.runs import FeatureRun, PairFeatures, publish_feature_run
@@ -57,9 +58,9 @@ def test_feature_run_publication_is_atomic_and_exact_retry_safe(connection, tmp_
         valid_from=at,
         payload=run.model_dump(mode="json"),
     )
-    before = datetime.now(UTC)
+    before = database_now(connection)
     assert repo.as_of(source_id=source, cutoff=before, effective_at=at) == []
     publish_feature_run(repo, store, run, fact, at)
     publish_feature_run(repo, store, run, fact, at)
     assert repo.as_of(source_id=source, cutoff=before, effective_at=at) == []
-    assert len(repo.as_of(source_id=source, cutoff=datetime.now(UTC), effective_at=at)) == 1
+    assert len(repo.as_of(source_id=source, cutoff=database_now(connection), effective_at=at)) == 1

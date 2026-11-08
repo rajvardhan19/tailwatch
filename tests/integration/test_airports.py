@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 
+from tailwatch.db.clock import database_now
 from tailwatch.db.evidence import Fact
 from tailwatch.entities.airports import AirportHistory, append_airport, proximity_snapshot
 from tailwatch.entities.history import OfficeHistory
@@ -90,7 +91,7 @@ def test_proximity_boundary_deduplication_and_correction_replay(connection, tmp_
                 ],
             )
         )
-    cutoff = datetime.now(UTC)
+    cutoff = database_now(connection)
 
     def snapshot(at=cutoff):
         return proximity_snapshot(
@@ -110,7 +111,7 @@ def test_proximity_boundary_deduplication_and_correction_replay(connection, tmp_
     changed["periods"][0]["location"]["longitude"] = 1
     publish(AirportHistory.model_validate(changed), first)
     assert snapshot().digest() == original.digest()
-    current = snapshot(datetime.now(UTC))
+    current = snapshot(database_now(connection))
     assert not current.links
     assert current.coverage == "inputs_present"
     assert current.digest() != original.digest()
@@ -118,7 +119,7 @@ def test_proximity_boundary_deduplication_and_correction_replay(connection, tmp_
         entities,
         airport_source="missing",
         office_source=source,
-        cutoff=datetime.now(UTC),
+        cutoff=database_now(connection),
         effective_at=start,
     )
     assert missing.coverage == "missing_source"

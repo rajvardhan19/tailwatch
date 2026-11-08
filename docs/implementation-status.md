@@ -10,8 +10,8 @@ Updated November 8, 2026. The roadmap remains the full target; this file disting
 | C03 | Validated source manifest, permission checks, per-run request/cost guards, inventory command | Real-data inventory, sector selection, rights review, provider-specific budget configuration; G0 not established |
 | C04 | Content-addressed raw objects, append-only PostgreSQL facts/revisions, atomic snapshot publication, distinct replay modes, Alembic migrations | Real source reconciliation remains pending; frozen run manifests are implemented |
 | C05 | Typed dated company/security/office/role/relationship histories, evidence bindings, ticker lookup, frozen-universe export | Real reference data and coverage inventory pending |
-| C06 | SEC HTTP adapter, rate limiting, hashed responses, durable index worklists and resumable capture | Not enabled by default; explicit CIK scope/contact/permissions required; single SEC worker only |
-| C07 | Hardened Form 4 extraction, normalized versioned storage, reviewed transaction classification and amendment reconciliation | Stratified comparison of 50 real filings pending; unresolved amendments excluded |
+| C06 | SEC HTTP adapter, rate limiting, hashed responses, durable index worklists and resumable capture | Bounded live command and three-company local metadata capture verified; scheduled ingestion still requires reviewed scope/coverage; single SEC worker only |
+| C07 | Hardened Form 4 extraction, normalized versioned storage, reviewed transaction classification and amendment reconciliation | Three real Form 4 smoke samples parsed (seven rows); stratified comparison of 50 filings pending; unresolved amendments excluded |
 | C08 | Item 408 passage candidates, evidence-bound reviewed quarterly records and termination count policy | Real disclosure validation and analyst review required |
 | C09 | Typed event/calendar/coverage imports, dated corrections, explicit blackout exposure | Earnings/calendar/event vendors not selected or connected |
 | C10 | FAA CSV archive parsing, immutable manifests, quarantines, dated alias observations and freshness-bounded lookup | Real archive dates/coverage validation, live acquisition, resolved airframe identities and privacy review pending |
@@ -30,7 +30,7 @@ Updated November 8, 2026. The roadmap remains the full target; this file disting
 
 The software foundations across C00–C31 are implemented. This is not a claim that every empirical acceptance criterion or live integration is complete. Each remaining dependency above is part of the roadmap, not a successful result inferred from fixtures. The detailed commit plan remains the target contract.
 
-`research-demo` computes deterministic synthetic features with no probability and an INCONCLUSIVE evaluation status. The browser dashboard starts without credentials. Real API output and external email require an active evidence-backed release; an environment flag or permissive sender callback cannot bypass it. No live ingestion, production deployment, paid service, or external notification has been enabled.
+`research-demo` computes deterministic synthetic features with no probability and an INCONCLUSIVE evaluation status. The browser dashboard starts without credentials. Real API output and external email require an active evidence-backed release; an environment flag or permissive sender callback cannot bypass it. Bounded local SEC metadata and three filing smoke captures have run. No scheduled live ingestion, production deployment, paid service, or external notification has been enabled.
 
 The free-first research choices and their limitations are recorded in [free-first stack](runbooks/free-first-stack.md). See [operations and release](runbooks/operations-release.md) for startup, recovery and deployment gates.
 
