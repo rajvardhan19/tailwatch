@@ -70,8 +70,13 @@ def evaluate(
             raise ValueError("positive announcement outside prediction horizon")
         if p.positive and (p.deal_id is None or p.announcement_at is None):
             raise ValueError("positive lacks definitive deal evidence")
+        previous = first.get(p.episode_id)
+        if previous is not None and previous.at == p.at and previous != p:
+            raise ValueError("conflicting episode predictions at the same timestamp")
         first.setdefault(p.episode_id, p)
     cohort = list(first.values())
+    if len({p.deal_id for p in cohort if p.positive}) > eligible_deals:
+        raise ValueError("eligible deal denominator smaller than observed deals")
     selected = sorted(
         (p for p in cohort if p.probability >= threshold),
         key=lambda p: (-p.probability, p.at, str(p.episode_id)),

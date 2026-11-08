@@ -20,7 +20,7 @@ Updated November 8, 2026. The roadmap remains the full target; this file disting
 | C13–C14 | Bounded flight imports, raw retention, quarantine, coverage-aware visits and probabilistic office attribution | ADSB.lol raw state adapter is a research candidate; validated historical trace-to-leg conversion and real coverage remain pending |
 | C15–C18 | Deterministic travel, insider, silence, text/financial features; immutable input/run manifests | Real reference inputs, embeddings and exposure validation; synthetic CLI is not a predictive model |
 | C19–C20 | Mature deal labels, frozen experiments, embargoes and matched baseline cohorts | Licensed labels, preregistered real sample sizes and untouched test data |
-| C21–C23 | Logistic candidates, calibration, signed explanations, sealed test access and conservative episode evaluation | Real training/validation, full empirical ablations and grouped model uncertainty; G3 not established |
+| C21–C23 | Logistic candidates, calibration, signed explanations, grouped refit uncertainty, matched-cohort ablations/coverage and sealed episode evaluation | Real training/validation, empirical ablation and uncertainty reports; G3 not established |
 | C24 | Executable-session returns and mature historical neighbors | Complete adjusted-price/calendar data and measured return results |
 | C25–C26 | Immutable alert events, canonical episodes, review transitions, evidence-bound claims and checkpoints | Human review operations and independently controlled checkpoint storage |
 | C27–C28 | Tenant-scoped API, keys, watchlists, public history/track record, verified subscriptions and durable outbox | Operator onboarding, verified sender/domain, provider reconciliation and real notification configuration |
