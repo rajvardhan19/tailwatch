@@ -86,7 +86,13 @@ def readiness(
             failures.append(f"{identifier}:missing_stale_or_corrupt")
         elif source.missing_fraction > max_missing or source.drift > max_drift:
             failures.append(f"{identifier}:distribution_change")
-    return {"ready": not failures, "failures": failures}
+    return {
+        "ready": not failures,
+        "failures": failures,
+        "valid_until": min(
+            (s.fresh_until for s in sources if s.source_id in required), default=at
+        ).isoformat(),
+    }
 
 
 def deadline(session: date, trading_sessions: set[date]) -> datetime:
@@ -131,3 +137,22 @@ def config_digest(configuration: dict[str, object]) -> str:
     return hashlib.sha256(
         json.dumps(configuration, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
     ).hexdigest()
+
+
+def required_session(
+    sessions: tuple[date, ...], calendar_valid_through: date, at: datetime
+) -> date:
+    """Most recent declared session whose New York preparation deadline has passed."""
+    if at.tzinfo is None or at.utcoffset() is None:
+        raise ValueError("aware readiness time required")
+    if not sessions or tuple(sorted(set(sessions))) != sessions:
+        raise ValueError("ordered distinct trading sessions required")
+    if calendar_valid_through < at.astimezone(ZoneInfo("America/New_York")).date():
+        raise ValueError("trading calendar coverage expired")
+    if sessions[-1] > calendar_valid_through:
+        raise ValueError("session outside declared calendar coverage")
+    declared = set(sessions)
+    due = [day for day in sessions if deadline(day, declared) <= at]
+    if not due:
+        raise ValueError("no completed preparation deadline in calendar")
+    return due[-1]

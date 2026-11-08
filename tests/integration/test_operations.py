@@ -98,7 +98,10 @@ def test_release_checks_deployed_config_tenant_and_kill(database, monkeypatch):
     model = uuid4().hex * 2
     tenant = uuid4()
     config = uuid4().hex * 2
-    sessions = tuple(now.date() - timedelta(days=i) for i in range(9, -1, -1))
+    from zoneinfo import ZoneInfo
+
+    today = now.astimezone(ZoneInfo("America/New_York")).date()
+    sessions = tuple(today - timedelta(days=i) for i in range(10, -1, -1))
     runs = []
     with database.begin() as conn:
         conn.execute(
@@ -125,8 +128,14 @@ def test_release_checks_deployed_config_tenant_and_kill(database, monkeypatch):
     for session in sessions:
         run = claim_run(database, session, config, False)
         assert run
-        finish_run(database, run, {"ready": True})
+        finish_run(
+            database, run, {"ready": True, "valid_until": (now + timedelta(days=1)).isoformat()}
+        )
         runs.append(run)
+    from tailwatch.operations.runtime import required_session
+
+    due = required_session(sessions, today + timedelta(days=2), now)
+    shadow_ids = [run for run, session in zip(runs, sessions, strict=True) if session <= due][-10:]
     manifest = ReleaseManifest(
         application_commit="a" * 40,
         model_hash=model,
@@ -138,11 +147,16 @@ def test_release_checks_deployed_config_tenant_and_kill(database, monkeypatch):
         expires_at=now + timedelta(days=1),
         rollout_limit=1,
         daily_email_limit=1,
-        shadow_run_ids=tuple(runs),
-        trading_sessions=sessions,
+        shadow_run_ids=tuple(shadow_ids),
+        trading_sessions=sessions + (today + timedelta(days=1), today + timedelta(days=2)),
+        calendar_valid_through=today + timedelta(days=2),
         approved_tenants=(tenant,),
         restore_drill_digest="a" * 64,
     )
+    from tailwatch.operations.release import _validate_current_run
+
+    with database.connect() as conn, pytest.raises(ValueError, match="latest due session"):
+        _validate_current_run(conn, manifest, now + timedelta(days=2))
     identifier = register_release(database, manifest)
     with pytest.raises(ValueError, match="deployed"):
         activate(database, identifier, "test")
@@ -152,6 +166,33 @@ def test_release_checks_deployed_config_tenant_and_kill(database, monkeypatch):
         activate(database, identifier, "test")
         assert allowed_model(database, tenant) == model
         assert allowed_model(database, uuid4()) is None
+        import json
+
+        valid_health = {"ready": True, "valid_until": (now + timedelta(days=1)).isoformat()}
+        for health in (
+            {"ready": True},
+            {"ready": False},
+            {"ready": True, "valid_until": "2000-01-01T00:00:00+00:00"},
+            {"ready": True, "valid_until": "2099-01-01T00:00:00"},
+        ):
+            with database.begin() as conn:
+                conn.execute(
+                    text(
+                        "UPDATE scheduled_runs SET readiness=CAST(:body AS jsonb) "
+                        "WHERE session_date=:day AND config_hash=:config"
+                    ),
+                    {"body": json.dumps(health), "day": due, "config": config},
+                )
+            assert allowed_model(database, tenant) is None
+        with database.begin() as conn:
+            conn.execute(
+                text(
+                    "UPDATE scheduled_runs SET readiness=CAST(:body AS jsonb) "
+                    "WHERE session_date=:day AND config_hash=:config"
+                ),
+                {"body": json.dumps(valid_health), "day": due, "config": config},
+            )
+        assert allowed_model(database, tenant) == model
         monkeypatch.setenv("TAILWATCH_CONFIG_HASH", "wrong")
         assert allowed_model(database, tenant) is None
     finally:

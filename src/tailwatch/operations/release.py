@@ -2,13 +2,15 @@
 
 import hashlib
 import os
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from pydantic import AwareDatetime, Field, model_validator
 from sqlalchemy import Connection, Engine, text
 
+from tailwatch.operations.runtime import required_session
 from tailwatch.sources.policy import Contract, NonEmpty
 
 
@@ -26,6 +28,7 @@ class ReleaseManifest(Contract):
     daily_email_limit: int = Field(ge=1, le=100)
     shadow_run_ids: tuple[str, ...] = Field(min_length=10, max_length=10)
     trading_sessions: tuple[date, ...] = Field(min_length=10)
+    calendar_valid_through: date
     approved_tenants: tuple[UUID, ...] = Field(min_length=1, max_length=100)
     restore_drill_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
     synthetic: Literal[False] = False
@@ -40,6 +43,12 @@ class ReleaseManifest(Contract):
             raise ValueError("distinct shadow runs required")
         if tuple(sorted(set(self.trading_sessions))) != self.trading_sessions:
             raise ValueError("ordered distinct trading sessions required")
+        if (
+            self.calendar_valid_through
+            < self.expires_at.astimezone(ZoneInfo("America/New_York")).date()
+            or self.trading_sessions[-1] > self.calendar_valid_through
+        ):
+            raise ValueError("calendar coverage must span release lifetime and all sessions")
         if (
             len(set(self.approved_tenants)) != len(self.approved_tenants)
             or len(self.approved_tenants) > self.rollout_limit
@@ -101,10 +110,49 @@ def _validate(conn: Connection, manifest: ReleaseManifest) -> None:
         )
     ):
         raise ValueError("ten successful real shadow sessions required")
-    if [r["session_date"] for r in runs] != list(manifest.trading_sessions[-10:]):
+    shadow_end = runs[-1]["session_date"]
+    if shadow_end > required_session(
+        manifest.trading_sessions, manifest.calendar_valid_through, now
+    ):
+        raise ValueError("shadow session preparation deadline has not passed")
+    shadow_calendar = [s for s in manifest.trading_sessions if s <= shadow_end]
+    if [r["session_date"] for r in runs] != shadow_calendar[-10:]:
         raise ValueError("shadow runs must cover ten consecutive declared trading sessions")
-    if not 0 <= (now.date() - manifest.trading_sessions[-1]).days <= 7:
+    if not 0 <= (now.astimezone(ZoneInfo("America/New_York")).date() - shadow_end).days <= 7:
         raise ValueError("shadow evidence is stale or future dated")
+
+    _validate_current_run(conn, manifest, now)
+
+
+def _validate_current_run(conn: Connection, manifest: ReleaseManifest, now: datetime) -> None:
+    session = required_session(manifest.trading_sessions, manifest.calendar_valid_through, now)
+    row = (
+        conn.execute(
+            text(
+                "SELECT status,synthetic,readiness,completed_at FROM scheduled_runs "
+                "WHERE session_date=:day AND config_hash=:config"
+            ),
+            {"day": session, "config": manifest.config_hash},
+        )
+        .mappings()
+        .first()
+    )
+    if (
+        row is None
+        or row["status"] != "complete"
+        or row["synthetic"]
+        or row["completed_at"] is None
+        or row["completed_at"] > now
+        or not isinstance(row["readiness"], dict)
+        or row["readiness"].get("ready") is not True
+    ):
+        raise ValueError("latest due session requires a completed real ready run")
+    valid_until = row["readiness"].get("valid_until")
+    if not isinstance(valid_until, str):
+        raise ValueError("source readiness expiry required")
+    expiry = datetime.fromisoformat(valid_until)
+    if expiry.tzinfo is None or expiry.utcoffset() is None or expiry <= now:
+        raise ValueError("source readiness expired")
 
 
 def register_release(engine: Engine, manifest: ReleaseManifest) -> str:
@@ -171,7 +219,10 @@ def allowed_model(engine: Engine, tenant: UUID | None = None) -> str | None:
         ).scalar_one_or_none()
         if row is None:
             return None
-        manifest = ReleaseManifest.model_validate(row)
+        try:
+            manifest = ReleaseManifest.model_validate(row)
+        except ValueError:
+            return None
         if (
             os.environ.get("TAILWATCH_APPLICATION_COMMIT") != manifest.application_commit
             or os.environ.get("TAILWATCH_CONFIG_HASH") != manifest.config_hash
