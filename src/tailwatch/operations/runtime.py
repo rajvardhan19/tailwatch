@@ -17,10 +17,19 @@ class DurableBudget:
     def __init__(self, engine: Engine, source: Source, day: date) -> None:
         self.engine, self.source, self.day = engine, source, day
 
+    def validate_for(self, source: Source) -> None:
+        if source != self.source:
+            raise PolicyDenied("budget does not match source configuration")
+
     def reserve(self, cost_microusd: int) -> None:
         if type(cost_microusd) is not int or cost_microusd < 0:
             raise ValueError("nonnegative integer cost required")
         with self.engine.begin() as conn:
+            current_day = conn.execute(
+                text("SELECT (clock_timestamp() AT TIME ZONE 'UTC')::date")
+            ).scalar_one()
+            if self.day != current_day:
+                raise PolicyDenied("daily budget expired or future dated; create today's budget")
             conn.execute(
                 text(
                     "INSERT INTO budget_accounts(source_id,budget_day,request_limit,cost_limit) "

@@ -38,3 +38,9 @@ Activation and every real API/delivery check require a completed, non-synthetic 
 `readiness` records `valid_until` from the earliest expiry of the required sources. Terminal runs used for production must retain that timestamp. Missing, invalid, naive or expired freshness timestamps block output. This check does not discover outages on its own: ingestion/monitoring workers must calculate truthful source health and freshness bounds.
 
 Release manifests now require `calendar_valid_through` covering their entire lifetime and a complete ordered trading-session calendar for that interval. The ten shadow IDs reference consecutive sessions within that calendar; future sessions are allowed in the calendar but cannot count as completed shadow evidence. Older manifests without coverage bounds fail closed and must be registered anew with reviewed evidence. No migration or production data rewrite is needed.
+
+## Live source budget binding
+
+Live SEC, flight and ADSB.lol adapters require a budget whose source configuration matches the request. `RequestBudget` is for fixtures only; passing it for a live source fails before transport access. Live workers inject `DurableBudget(engine, source, utc_day)`. Custom budget implementations must honor both `validate_for(source)` and `reserve(cost_microusd)`.
+
+The durable ledger uses the database UTC date to reject yesterday's or future-dated budget before reserving. Recreate the budget for the new UTC day at rollover; never replay requests against yesterday's unused quota. Concurrent workers and restarts share the same source/day count and cost limits. A changed daily limit is rejected rather than silently resetting the ledger. Retries remain charged even when provider access fails.

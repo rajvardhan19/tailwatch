@@ -101,6 +101,7 @@ def collect_flights(
             body = None
             for attempt in range(max_attempts):
                 authorize(source, mode=mode, capability="flights", at=now())
+                budget.validate_for(source)
                 budget.reserve(cost_microusd)
                 try:
                     body = transport.fetch(cursor)

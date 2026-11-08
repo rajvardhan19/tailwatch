@@ -123,6 +123,8 @@ def authorize(
 
 
 class Budget(Protocol):
+    def validate_for(self, source: Source) -> None: ...
+
     def reserve(self, cost_microusd: int) -> None: ...
 
 
@@ -134,11 +136,18 @@ class RequestBudget:
     """
 
     def __init__(self, source: Source) -> None:
+        self._source = source
         self._request_limit = source.max_requests
         self._cost_limit = source.max_cost_microusd
         self._requests = 0
         self._cost = 0
         self._lock = Lock()
+
+    def validate_for(self, source: Source) -> None:
+        if source != self._source:
+            raise PolicyDenied("budget does not match source configuration")
+        if source.kind == "live":
+            raise PolicyDenied("live source requires a durable daily budget")
 
     def reserve(self, cost_microusd: int) -> None:
         if type(cost_microusd) is not int or cost_microusd < 0:

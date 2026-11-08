@@ -133,3 +133,24 @@ def test_pagination_budget_retry_conflict_and_outage(tmp_path):
     )
     assert failed.status == "incomplete" and not failed.legs
     assert "secret" not in failed.model_dump_json()
+
+
+def test_flight_capture_rejects_wrong_source_budget_before_transport(tmp_path):
+    base = load_manifest(Path("config/sources.fixture.json")).sources[0]
+    source = Source.model_validate(base.model_dump() | {"capabilities": ["flights"]})
+
+    class NeverFetch:
+        def fetch(self, cursor):
+            raise AssertionError("budget mismatch must stop provider access")
+
+    result = collect_flights(
+        source,
+        Mode.FIXTURE,
+        NeverFetch(),
+        LocalObjectStore(tmp_path),
+        lambda: T,
+        RequestBudget(base),
+    )
+    assert result.status == "incomplete"
+    assert result.raw_digests == ()
+    assert result.reason == "PolicyDenied"
