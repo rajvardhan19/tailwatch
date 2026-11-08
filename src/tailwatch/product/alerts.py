@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-from datetime import timedelta
+from datetime import UTC, timedelta
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
@@ -45,10 +45,11 @@ def create_episode(
     existing = conn.execute(
         text(
             "SELECT episode_id FROM alert_episodes WHERE tenant_id=:tenant "
-            "AND pair_key=:pair AND created_at>clock_timestamp()-interval '180 days' "
+            "AND pair_key=:pair AND synthetic=:synthetic "
+            "AND created_at>clock_timestamp()-interval '180 days' "
             "ORDER BY created_at DESC LIMIT 1"
         ),
-        {"tenant": tenant, "pair": pair},
+        {"tenant": tenant, "pair": pair, "synthetic": synthetic},
     ).scalar_one_or_none()
     if existing:
         return UUID(str(existing))
@@ -76,7 +77,9 @@ def create_episode(
 def events(conn: Connection, tenant: UUID, episode: UUID) -> list[dict[str, Any]]:
     rows = conn.execute(
         text(
-            "SELECT e.* FROM alert_events e JOIN alert_episodes a USING(episode_id) "
+            "SELECT e.*,a.tenant_id,a.visitor,a.host,a.model_hash,a.feature_run_hash,a.synthetic,"
+            "a.created_at AS episode_created_at FROM alert_events e "
+            "JOIN alert_episodes a USING(episode_id) "
             "WHERE a.tenant_id=:tenant AND a.episode_id=:id ORDER BY sequence"
         ),
         {"tenant": tenant, "id": episode},
@@ -121,6 +124,8 @@ def append_event(
             raise ValueError("negative outcome lacks mature complete followup")
         if body["state"] != "pending" and not body.get("evidence"):
             raise ValueError("outcome requires evidence")
+    verify_history(history)
+    recorded_at = conn.execute(text("SELECT clock_timestamp()")).scalar_one()
     sequence = len(history) + 1
     previous = history[-1]["event_hash"] if history else "0" * 64
     value = {
@@ -131,12 +136,14 @@ def append_event(
         "body": body,
         "previous_hash": previous,
     }
-    digest = hashlib.sha256(canonical(value)).hexdigest()
+    value["recorded_at"] = recorded_at.astimezone(UTC).isoformat()
+    value["episode_context"] = _context(dict(row), "created_at")
+    digest = "v2:" + hashlib.sha256(canonical(value)).hexdigest()
     conn.execute(
         text(
             "INSERT INTO alert_events(episode_id,sequence,kind,actor,body,"
-            "previous_hash,event_hash) "
-            "VALUES(:id,:seq,:kind,:actor,CAST(:body AS jsonb),:previous,:hash)"
+            "previous_hash,event_hash,recorded_at) "
+            "VALUES(:id,:seq,:kind,:actor,CAST(:body AS jsonb),:previous,:hash,:recorded)"
         ),
         {
             "id": episode,
@@ -146,9 +153,22 @@ def append_event(
             "body": json.dumps(body, allow_nan=False),
             "previous": previous,
             "hash": digest,
+            "recorded": recorded_at,
         },
     )
     return digest
+
+
+def _context(row: dict[str, Any], created_key: str) -> dict[str, object]:
+    return {
+        "tenant_id": str(row["tenant_id"]),
+        "visitor": str(row["visitor"]),
+        "host": str(row["host"]),
+        "model_hash": row["model_hash"],
+        "feature_run_hash": row["feature_run_hash"],
+        "synthetic": row["synthetic"],
+        "created_at": row[created_key].astimezone(UTC).isoformat(),
+    }
 
 
 def verify_history(history: list[dict[str, Any]]) -> str:
@@ -158,7 +178,12 @@ def verify_history(history: list[dict[str, Any]]) -> str:
             raise ValueError("broken event sequence")
         value = {k: event[k] for k in ("sequence", "kind", "actor", "body", "previous_hash")}
         value["episode_id"] = str(event["episode_id"])
-        digest = hashlib.sha256(canonical(value)).hexdigest()
+        prefix = ""
+        if event["event_hash"].startswith("v2:"):
+            prefix = "v2:"
+            value["recorded_at"] = event["recorded_at"].astimezone(UTC).isoformat()
+            value["episode_context"] = _context(event, "episode_created_at")
+        digest = prefix + hashlib.sha256(canonical(value)).hexdigest()
         if digest != event["event_hash"]:
             raise ValueError("event hash mismatch")
         previous = digest
@@ -169,9 +194,30 @@ def checkpoint(
     conn: Connection, tenant: UUID, episode: UUID, independent_store: ObjectStore
 ) -> str:
     history = events(conn, tenant, episode)
+    if not history:
+        raise ValueError("cannot checkpoint an empty history")
     head = verify_history(history)
     return independent_store.put(
         canonical(
             {"tenant": str(tenant), "episode": str(episode), "sequence": len(history), "head": head}
         )
     )
+
+
+def verify_checkpoint(
+    conn: Connection, tenant: UUID, episode: UUID, independent_store: ObjectStore, digest: str
+) -> str:
+    retained = json.loads(independent_store.get(digest))
+    history = events(conn, tenant, episode)
+    current = verify_history(history)
+    count = retained.get("sequence")
+    if (
+        retained.get("tenant") != str(tenant)
+        or retained.get("episode") != str(episode)
+        or type(count) is not int
+        or count < 1
+        or count > len(history)
+        or retained.get("head") != history[count - 1]["event_hash"]
+    ):
+        raise ValueError("retained checkpoint does not match current history")
+    return current
