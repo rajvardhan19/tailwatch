@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy import Connection
 
 from tailwatch.context.events import ContextEvent, append_context, known_events
+from tailwatch.db.clock import database_now
 from tailwatch.db.evidence import EvidenceRepository, Fact
 from tailwatch.entities.repository import EntityRepository
 from tailwatch.sources.objects import LocalObjectStore
@@ -66,8 +67,8 @@ def test_future_schedule_correction_preserves_earlier_knowledge(connection: Conn
         return item
 
     original = put(15)
-    cutoff = datetime.now(UTC)
+    cutoff = database_now(connection)
     assert known_events(repo, source, cutoff)[0].start.day == 15
     put(20, original)
     assert known_events(repo, source, cutoff)[0].start.day == 15
-    assert known_events(repo, source, datetime.now(UTC))[0].start.day == 20
+    assert known_events(repo, source, database_now(connection))[0].start.day == 20

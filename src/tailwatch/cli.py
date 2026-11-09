@@ -45,6 +45,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     trace.add_argument("--available-at", type=datetime.fromisoformat, required=True)
     trace.add_argument("--objects", type=Path, required=True)
     operator_commands.add_commands(commands)
+    sec_capture = commands.add_parser(
+        "capture-sec", help="capture bounded live SEC submissions metadata"
+    )
+    sec_capture.add_argument("manifest", type=Path)
+    sec_capture.add_argument("--source", required=True)
+    sec_capture.add_argument("--cik", action="append", required=True)
+    sec_capture.add_argument("--objects", type=Path, required=True)
     source_inventory = commands.add_parser("inventory", help="inspect declared source feasibility")
     source_inventory.add_argument("manifest", type=Path)
     history = commands.add_parser("validate-history", help="validate dated entity fixture JSON")
@@ -96,6 +103,38 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
         except (OSError, ValueError) as error:
             parser.exit(2, f"Offline input rejected: {type(error).__name__}\n")
+        return 0
+    if args.command == "capture-sec":
+        from sqlalchemy import create_engine
+        from sqlalchemy.exc import SQLAlchemyError
+
+        from tailwatch.sources.objects import LocalObjectStore
+        from tailwatch.sources.sec.research import capture_submissions
+
+        url, agent = (
+            os.environ.get("TAILWATCH_DATABASE_URL"),
+            os.environ.get("TAILWATCH_SEC_USER_AGENT"),
+        )
+        if not url or not agent:
+            parser.exit(2, "Database URL and SEC User-Agent environment settings are required\n")
+        engine = create_engine(url)
+        try:
+            manifest = load_manifest(args.manifest)
+            source = next((s for s in manifest.sources if s.source_id == args.source), None)
+            if source is None:
+                raise ValueError("source absent from manifest")
+            print(
+                json.dumps(
+                    capture_submissions(
+                        engine, source, tuple(args.cik), LocalObjectStore(args.objects), agent
+                    ),
+                    sort_keys=True,
+                )
+            )
+        except (OSError, ValueError, SQLAlchemyError) as error:
+            parser.exit(2, f"SEC research capture rejected: {type(error).__name__}\n")
+        finally:
+            engine.dispose()
         return 0
     if args.command == "provision-workspace":
         from sqlalchemy import create_engine

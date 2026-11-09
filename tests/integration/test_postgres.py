@@ -6,7 +6,7 @@ import pytest
 pytestmark = pytest.mark.integration
 
 
-def test_postgis_and_database_constraints() -> None:
+def test_postgis_and_database_constraints(database) -> None:
     # Explicit integration runs must fail, not silently skip, without a database.
     url = os.environ["TAILWATCH_TEST_DATABASE_URL"].replace("postgresql+psycopg:", "postgresql:")
     with psycopg.connect(url) as connection:

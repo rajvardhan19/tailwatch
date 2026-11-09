@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import Connection
 from sqlalchemy.exc import DBAPIError
 
+from tailwatch.db.clock import database_now
 from tailwatch.db.evidence import Fact
 from tailwatch.entities.history import OfficeHistory, SecurityHistory
 from tailwatch.entities.repository import AmbiguousTicker, EntityRepository, read_history_fixture
@@ -69,7 +70,7 @@ def test_history_revisions_ticker_reuse_and_frozen_universe(connection: Connecti
         ],
     )
     append_history(repo, store, security)
-    cutoff = datetime.now(UTC)
+    cutoff = database_now(connection)
     assert (
         repo.resolve_ticker("SYN", "XNAS", source_id="synthetic", cutoff=cutoff, effective_at=START)
         == security.entity_id
@@ -112,7 +113,7 @@ def test_history_revisions_ticker_reuse_and_frozen_universe(connection: Connecti
             "SYN",
             "XNAS",
             source_id="synthetic",
-            cutoff=datetime.now(UTC),
+            cutoff=database_now(connection),
             effective_at=datetime(2026, 1, 11, tzinfo=UTC),
         )
         == replacement.entity_id
@@ -121,7 +122,11 @@ def test_history_revisions_ticker_reuse_and_frozen_universe(connection: Connecti
     append_history(repo, store, collision)
     with pytest.raises(AmbiguousTicker):
         repo.resolve_ticker(
-            "SYN", "XNAS", source_id="synthetic", cutoff=datetime.now(UTC), effective_at=START
+            "SYN",
+            "XNAS",
+            source_id="synthetic",
+            cutoff=database_now(connection),
+            effective_at=START,
         )
 
 
@@ -146,7 +151,7 @@ def test_office_correction_preserves_earlier_view_and_company_fk(
         ],
     )
     first = append_history(repo, store, office)
-    cutoff = datetime.now(UTC)
+    cutoff = database_now(connection)
     corrected = office.model_dump()
     corrected["periods"][0]["address"] = "Corrected HQ"
     append_history(repo, store, OfficeHistory.model_validate(corrected), first)

@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 
+from tailwatch.db.clock import database_now
 from tailwatch.db.evidence import Fact
 from tailwatch.entities.aircraft_control import ControlReview, LinkEvidence, resolve_control
 from tailwatch.entities.aircraft_control_store import append_review, known_reviews
@@ -88,11 +89,11 @@ def test_review_evidence_binding_rejection_revision_and_operational_cutoff(conne
     with pytest.raises(ValueError, match="document"):
         append_review(repo, store, first, archive, {digest: b"altered"})
     append_review(repo, store, first, archive, {digest: document})
-    before = datetime.now(UTC)
+    before = database_now(connection)
     assert known_reviews(repo, source_id=source, cutoff=before, effective_at=start) == []
     repo.publish(first.snapshot_id, start)
     append_review(repo, store, first, archive, {digest: document})
-    after = datetime.now(UTC)
+    after = database_now(connection)
     initial = known_reviews(repo, source_id=source, cutoff=after, effective_at=start)
     assert initial[0].known_at > before
     assert (
@@ -112,7 +113,9 @@ def test_review_evidence_binding_rejection_revision_and_operational_cutoff(conne
     append_review(repo, store, second, archive, {digest: document})
     repo.publish(second.snapshot_id, start)
     assert known_reviews(repo, source_id=source, cutoff=after, effective_at=start) == initial
-    current = known_reviews(repo, source_id=source, cutoff=datetime.now(UTC), effective_at=start)
+    current = known_reviews(
+        repo, source_id=source, cutoff=database_now(connection), effective_at=start
+    )
     assert len(current) == 1
     assert current[0].review.decision == "rejected"
     assert (
@@ -121,7 +124,7 @@ def test_review_evidence_binding_rejection_revision_and_operational_cutoff(conne
             archive,
             airframe_id=airframe,
             role="controller",
-            cutoff=datetime.now(UTC),
+            cutoff=database_now(connection),
             effective_at=start,
             max_registry_age=timedelta(days=1),
         ).state

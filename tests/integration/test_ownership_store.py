@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import Connection, text
 
+from tailwatch.db.clock import database_now
 from tailwatch.sources.objects import LocalObjectStore
 from tailwatch.sources.sec.form4 import ParsedForm4, parse_form4
 from tailwatch.sources.sec.ownership_store import known_form4s, save_form4
@@ -22,7 +23,7 @@ def test_versioned_ownership_storage_is_idempotent_and_not_backdated(
         available_at=datetime(2026, 1, 2, tzinfo=UTC),
     )
     store = LocalObjectStore(tmp_path)
-    before = datetime.now(UTC)
+    before = database_now(connection)
     identifier = save_form4(connection, store, raw, filing)
     assert save_form4(connection, store, raw, filing) == identifier
     assert (
@@ -33,7 +34,8 @@ def test_versioned_ownership_storage_is_idempotent_and_not_backdated(
     )
     assert all(f.source_digest != filing.source_digest for f in known_form4s(connection, before))
     assert any(
-        f.source_digest == filing.source_digest for f in known_form4s(connection, datetime.now(UTC))
+        f.source_digest == filing.source_digest
+        for f in known_form4s(connection, database_now(connection))
     )
     changed = ParsedForm4.model_validate(filing.model_dump() | {"issuer_name": "Wrong"})
     with pytest.raises(ValueError, match="parser output changed"):
