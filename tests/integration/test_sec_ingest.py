@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy import Engine, text
 
 from tailwatch.sources.objects import LocalObjectStore
-from tailwatch.sources.policy import Mode, Source, load_manifest
+from tailwatch.sources.policy import Mode, PolicyDenied, Source, load_manifest
 from tailwatch.sources.sec.client import RateLimiter, Response, SECClient
 from tailwatch.sources.sec.ingest import SECJournal
 from tailwatch.sources.sec.ownership_store import parse_downloaded_run
@@ -14,7 +14,7 @@ pytestmark = pytest.mark.integration
 
 
 def test_resumable_worklist_tracks_missing_and_quarantined_filings(
-    database: Engine, tmp_path: Path
+    database: Engine, tmp_path: Path, monkeypatch
 ):
     source = Source.model_validate(
         load_manifest(Path("config/sources.fixture.json")).sources[0].model_dump()
@@ -74,6 +74,14 @@ def test_resumable_worklist_tracks_missing_and_quarantined_filings(
         "parsed": 1,
         "complete": False,
     }
+
+    def exhausted(url):
+        raise PolicyDenied("daily quota exhausted")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(client, "get", exhausted)
+        with pytest.raises(PolicyDenied, match="quota"):
+            journal.resume(run, client)
     # A fresh journal resumes persisted successes without refetching the index/first filing.
     resumed = SECJournal(database, store)
     resumed.discover(run, url, client)
@@ -96,3 +104,13 @@ def test_resumable_worklist_tracks_missing_and_quarantined_filings(
             ).scalar_one()
             == 1
         )
+    # Even a fully downloaded cursor must not hide lost/corrupted raw evidence.
+    first_digest = store.put(first)
+    retained = tmp_path / first_digest[:2] / first_digest
+    retained.write_bytes(b"corrupted")
+    with pytest.raises(ValueError, match="checksum"):
+        resumed.resume(run, client)
+    retained.unlink()
+    with pytest.raises(FileNotFoundError):
+        resumed.resume(run, client)
+    assert transport.calls == 4

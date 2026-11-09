@@ -8,6 +8,7 @@ from sqlalchemy import Engine, text
 
 from tailwatch.db.evidence import EvidenceRepository
 from tailwatch.sources.objects import ObjectStore
+from tailwatch.sources.policy import PolicyDenied
 from tailwatch.sources.sec.client import Fetch, SECClient
 from tailwatch.sources.sec.index import Filing, parse_master_index, verify_filing
 
@@ -102,11 +103,19 @@ class SECJournal:
             if run["source_id"] != client.source.source_id:
                 raise ValueError("client source disagrees with frozen run")
             records = [Filing.model_validate(row) for row in run["manifest"]]
-            completed = set(
+            downloads = dict(
                 connection.execute(
-                    text("SELECT accession FROM sec_downloads WHERE run_id=:id"), {"id": run_id}
-                ).scalars()
+                    text("SELECT accession,digest FROM sec_downloads WHERE run_id=:id"),
+                    {"id": run_id},
+                )
+                .tuples()
+                .all()
             )
+        # A persisted cursor proves a past write, not continued evidence availability.
+        # Fail before fetching anything if retained evidence is missing or corrupt.
+        for digest in downloads.values():
+            self.store.get(digest)
+        completed = set(downloads)
         for record in records:
             if record.accession in completed:
                 continue
@@ -139,6 +148,10 @@ class SECJournal:
                         {"run": run_id, "accession": record.accession},
                     )
                 completed.add(record.accession)
+            except PolicyDenied:
+                # Quotas and expired permissions affect the worker, not filing quality.
+                # Stop immediately; do not quarantine every remaining accession.
+                raise
             except (OSError, ValueError) as error:
                 with self.engine.begin() as connection:
                     connection.execute(
