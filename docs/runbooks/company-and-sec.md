@@ -18,7 +18,7 @@ All clients in one process share an eight-requests-per-second limiter, including
 
 Downloaded accession/form headers must match the frozen index. Acceptance timestamps are interpreted in Eastern time and retained separately from first observation; they are **not** claimed as exact public-availability timestamps. Unparseable headers are quarantined. Raw-download completeness is not XML parse completeness and cannot enable model alerts. Quarantine history is append-only even when a subsequent attempt succeeds.
 
-Budgets currently apply per client instance; the provider is free and no paid adapter exists. They are not durable daily account limits. Rights/history review, sector selection, and real-source sampling remain outstanding. The tests do not establish SEC coverage or predictive validity.
+Live clients require source-bound durable daily budgets; in-memory budgets are limited to fixtures. Quota exhaustion and expired permissions stop a resumed worker immediately without quarantining unattempted filings. Every resume verifies retained downloaded objects before trusting the cursor, including already complete runs; missing or corrupt evidence requires recovery from a verified backup. Rights/history review and representative real-source sampling remain outstanding. The tests do not establish SEC coverage or predictive validity.
 
 ## Form 4 extraction and reconciliation (C07)
 
