@@ -159,6 +159,20 @@ main { grid-row: 2; min-width: 0; padding: 18px 24px 28px; display: grid; grid-t
 .key-dot.live { width: 8px; height: 8px; border-radius: 2px; background: var(--live); opacity: 1; }
 .live-tile .tile-value { color: var(--ink); }
 
+/* Inspector: selected flight and live overview */
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 0; font-size: 13px; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; }
+.facts dd small { color: var(--muted); font-size: 12px; }
+.inspector-note { margin: 12px 0 0; font-size: 12px; color: var(--muted); }
+.inspector-actions { margin-top: 14px; }
+.meter-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.meter-list li { display: grid; grid-template-columns: 110px 1fr 46px; align-items: center; gap: 10px; font-size: 12.5px; }
+.meter-list .name { color: var(--ink-2); }
+.meter-list .track { height: 8px; border-radius: 4px; background: rgba(25, 158, 112, 0.16); overflow: hidden; }
+.meter-list .fill { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--live); }
+.meter-list .figure { text-align: right; color: var(--ink); font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+
 /* Past deals backtest */
 .backtest-body { padding: 0 18px 18px; display: grid; gap: 16px; }
 .backtest-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
@@ -329,4 +343,4 @@ main.confirm-card .button { margin-top: 12px; }
   .conditions-table th, .conditions-table td { padding-right: 4px; }
 }
 .filing .form-tag { justify-self: start; white-space: nowrap; }
-.conditions.empty-state .subhead, .conditions.empty-state .gates, .conditions.empty-state .conditions-actions { display: none; }
+.conditions.empty-state > .subhead, .conditions.empty-state > .gates, .conditions.empty-state > .conditions-actions { display: none; }

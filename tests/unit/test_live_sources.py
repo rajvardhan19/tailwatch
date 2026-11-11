@@ -154,6 +154,7 @@ def test_live_traffic_merges_hubs_without_identity_and_polls_only_when_watched()
         air_get=get,
         budget_for=lambda _: CountingBudget(),
         hub_interval=0.01,
+        warmup_interval=0.01,
         idle_after=0.5,
     )
     assert feeds.enabled() == {"traffic": True, "filings": False}
@@ -166,6 +167,9 @@ def test_live_traffic_merges_hubs_without_identity_and_polls_only_when_watched()
     feeds.stop()
     assert {h["name"] for h in snapshot["hubs"]} == {"New York", "Washington"}
     assert len(snapshot["aircraft"]) == 2  # the same aircraft seen by two hubs counts once
+    names = [h["name"] for h in snapshot["hubs"]]
+    assert names == sorted(names)
+    assert {row[6] for row in snapshot["aircraft"]} <= set(range(len(names)))  # hub index
     text = json.dumps(snapshot)
     for secret in ("abc123", "def456", "SECRET1", "N1SECRET", "GLF6"):
         assert secret not in text

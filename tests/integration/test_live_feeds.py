@@ -54,6 +54,7 @@ def test_live_routes_require_a_key_and_hide_unconfigured_feeds(database, tmp_pat
         hubs=airtraffic.HUBS[:1],
         air_get=payload,
         hub_interval=0.01,
+        warmup_interval=0.01,
     )
     client = TestClient(create_app(database, live=feeds))
     assert client.get("/live/status").json() == {
@@ -93,6 +94,7 @@ def test_durable_budget_exhaustion_pauses_the_air_feed(database, tmp_path):
         hubs=airtraffic.HUBS[:3],
         air_get=get,
         hub_interval=0.01,
+        warmup_interval=0.01,
     )
     feeds.traffic()
     deadline = time.monotonic() + 5

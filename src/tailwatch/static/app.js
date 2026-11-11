@@ -102,7 +102,7 @@ const state = {
   demo: true, key: '', items: [], watch: new Set(), view: 'all', cursor: null,
   selected: null, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches, listView: false,
   live: { available: false, traffic: false, filings: false, open: false }, traffic: null, filings: null,
-  timers: [], centred: false, backtest: null,
+  timers: [], centred: false, backtest: null, flight: null,
 };
 const LIVE_NOTICE = 'Live research feeds: real ADS-B air traffic (anonymous, privacy-filtered) and the latest SEC Form 4 filings. No predictions are made; reviewed signals appear only when the gated pipeline produces them.';
 const nyTime = value => {
@@ -177,6 +177,11 @@ function dwell(visit) {
 const globe = createGlobe($('#globe'), {
   tooltip: $('#globe-tooltip'),
   onSelect: id => select(id),
+  onPlane: (info, reason) => {
+    state.flight = info;
+    if (reason === 'lost') status('The inspected aircraft is not in the latest snapshot.');
+    renderInspector();
+  },
   onView: (() => {
     let previous = '';
     return (lon, lat) => {
@@ -225,7 +230,90 @@ function renderGlobe(items) {
 
 // ----- conditions ----------------------------------------------------------
 
+// ----- inspector: selected flight, signal conditions or live overview ---------
+
+let inspectorArgs = [undefined, 1];
+
+function renderInspector(item = inspectorArgs[0], scale = inspectorArgs[1]) {
+  inspectorArgs = [item, scale];
+  if (state.flight) renderFlight(state.flight);
+  else if (item || state.demo || !state.traffic) renderConditions(item, scale);
+  else renderOverview(state.traffic);
+}
+
+function inspectorFrame(eyebrow, title, meta) {
+  $('#inspector-eyebrow').textContent = eyebrow;
+  $('#conditions-pair').textContent = title;
+  $('#conditions-meta').textContent = meta;
+  document.querySelector('.conditions').classList.add('empty-state');
+  const body = $('#conditions-body');
+  body.replaceChildren();
+  return body;
+}
+
+const compass = track => ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(track / 45) % 8];
+const ago = seconds => (seconds < 90 ? `${Math.round(seconds)} s ago` : `${Math.round(seconds / 60)} min ago`);
+
+function renderFlight(info) {
+  const hub = state.traffic?.hubs?.[info.hub]?.name;
+  const body = inspectorFrame('SELECTED AIRCRAFT', hub ? `Live aircraft · ${hub} region` : 'Live aircraft', 'Anonymous ADS-B report. Callsign, registration and type are withheld by your privacy setting.');
+  const facts = node('dl', undefined, 'facts');
+  const fact = (label, value, note) => {
+    const dd = node('dd', value);
+    if (note) dd.append(document.createTextNode(' '), node('small', note));
+    facts.append(node('dt', label), dd);
+  };
+  const lat = `${Math.abs(info.latitude).toFixed(2)}° ${info.latitude >= 0 ? 'N' : 'S'}`;
+  const lon = `${Math.abs(info.longitude).toFixed(2)}° ${info.longitude >= 0 ? 'E' : 'W'}`;
+  fact('Position', `${lat}, ${lon}`, info.estimatedSeconds > 5 ? '(estimated)' : '');
+  fact('Altitude', `${Math.round(info.altitude).toLocaleString()} ft`, `FL${String(Math.round(info.altitude / 100)).padStart(3, '0')}`);
+  fact('Ground speed', `${Math.round(info.speed)} kt`, `${Math.round(info.speed * 1.852).toLocaleString()} km/h`);
+  fact('Heading', info.track >= 0 ? `${String(Math.round(info.track)).padStart(3, '0')}° ${compass(info.track)}` : 'Not reported');
+  fact('Last report', ago(info.reportAge), info.estimatedSeconds > 5 ? `moved along its track since (up to 15 min)` : '');
+  fact('Coverage', hub ? `${hub} hub, 250 nm` : 'Regional hub, 250 nm');
+  body.append(facts);
+  body.append(node('p', 'Positions come from ADSB.lol (ODbL 1.0), coarsened to about 5 km. They are not completed visits and never feed signals.', 'inspector-note'));
+  const actions = node('div', undefined, 'inspector-actions');
+  const clear = node('button', 'Clear selection', 'ghost');
+  clear.type = 'button';
+  clear.addEventListener('click', () => {
+    globe.clearPlane();
+    state.flight = null;
+    renderInspector();
+  });
+  actions.append(clear);
+  body.append(actions);
+}
+
+function renderOverview(traffic) {
+  const body = inspectorFrame('LIVE OVERVIEW', `${traffic.aircraft.length.toLocaleString()} aircraft in view`, 'Click any aircraft on the globe to see its details.');
+  const counts = traffic.hubs.map(h => [h.name, h.aircraft]).sort((a, b) => b[1] - a[1]);
+  const max = Math.max(1, ...counts.map(([, n]) => n));
+  const list = node('ul', undefined, 'meter-list');
+  list.setAttribute('aria-label', 'Aircraft per hub region');
+  for (const [name, count] of counts) {
+    const row = node('li');
+    const track = node('span', undefined, 'track');
+    const fill = node('span', undefined, 'fill');
+    fill.style.width = `${(count / max) * 100}%`;
+    track.append(fill);
+    track.setAttribute('aria-hidden', 'true');
+    row.append(node('span', name, 'name'), track, node('span', count.toLocaleString(), 'figure'));
+    list.append(row);
+  }
+  if (!counts.length) list.append(node('li', 'Loading regions…', 'muted-text'));
+  body.append(node('h3', 'Aircraft per region', 'subhead'), list);
+  const excluded = traffic.excluded || {};
+  const notes = [
+    `${traffic.hubs.length}/${traffic.hub_total} regions reporting${traffic.detail ? ` · ${traffic.detail}` : ''}.`,
+    `Hidden for privacy or safety: ${(excluded.privacy_listed || 0).toLocaleString()} privacy-listed or military, ${(excluded.low_or_ground || 0).toLocaleString()} on the ground or below 5,000 ft.`,
+  ];
+  if (traffic.provider_quota) notes.push(`ADSB.lol requests left today: ${traffic.provider_quota.remaining}/${traffic.provider_quota.limit}.`);
+  for (const text of notes) body.append(node('p', text, 'inspector-note'));
+}
+
 function renderConditions(item, scale) {
+  $('#inspector-eyebrow').textContent = 'CONDITIONS';
   const body = $('#conditions-body');
   const gates = $('#gates');
   body.replaceChildren();
@@ -415,7 +503,7 @@ function render() {
   const scale = Math.max(0.001, ...state.items.flatMap(item => Object.values(item.public?.contributions || {}).map(v => Math.abs(number(v) ?? 0))));
   renderRows(state.view === 'track' && state.demo ? [] : items);
   renderGlobe(items);
-  renderConditions(items.find(item => item.episode_id === state.selected), scale);
+  renderInspector(items.find(item => item.episode_id === state.selected), scale);
   renderTape(state.items);
   if (state.selected !== focused) {
     // Re-centre only when the selection changes, never on every filter keystroke.
@@ -426,6 +514,8 @@ function render() {
 
 function select(id) {
   state.selected = id;
+  state.flight = null; // choosing a signal returns the inspector to its conditions
+  globe.clearPlane();
   render();
   const [visitor, host] = names(state.items.find(item => item.episode_id === id) || {});
   if (visitor) status(`Selected ${visitor} → ${host}.`);
@@ -783,6 +873,11 @@ function setListView(enabled) {
 
 function tickClocks() {
   const now = new Date();
+  if (state.flight) {
+    // The inspected aircraft keeps moving between reports.
+    state.flight = globe.planeDetails() || state.flight;
+    renderInspector();
+  }
   $('#clock-utc').textContent = now.toISOString().slice(11, 19);
   $('#clock-ny').textContent = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',

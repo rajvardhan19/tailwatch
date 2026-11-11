@@ -94,12 +94,13 @@ function graticule() {
   return lines;
 }
 
-export function createGlobe(canvas, { tooltip, onSelect, onView } = {}) {
+export function createGlobe(canvas, { tooltip, onSelect, onView, onPlane } = {}) {
   const context = canvas.getContext('2d');
   const grid = graticule();
   const state = {
     lon: -40, lat: 24, width: 0, height: 0, dpr: 1, radius: 0, base: 0, zoom: 1, cx: 0, cy: 0,
     land: new Float32Array(0), arcs: [], traffic: [], live: [], selected: null, hover: null,
+    liveScreen: [], hoverPlane: null, selectedPlane: null,
     motion: true, dragging: null, target: null, last: 0, frame: 0, clock: 0,
   };
   let colours = {};
@@ -275,6 +276,16 @@ export function createGlobe(canvas, { tooltip, onSelect, onView } = {}) {
     }
   }
 
+  // Estimated current position: reported track and ground speed for at most 15 minutes.
+  function estimate(plane, now) {
+    const elapsed = Math.min(900, Math.max(0, (now - plane.at) / 1000));
+    if (plane.track < 0 || plane.gs <= 0) return { lon: plane.lon, lat: plane.lat, elapsed: 0 };
+    const degrees = (plane.gs * elapsed) / 3600 / 60;
+    const lat = plane.lat + degrees * plane.cosTrack;
+    const lon = plane.lon + (degrees * plane.sinTrack) / Math.max(0.2, Math.cos(lat * RAD));
+    return { lon, lat, elapsed };
+  }
+
   // Real, anonymous ADS-B positions, dead-reckoned from their reported track and ground
   // speed for at most two minutes. Each aircraft is a heading-oriented glyph with a trail
   // whose length is proportional to ground speed: shape, not only hue, sets them apart.
@@ -295,16 +306,14 @@ export function createGlobe(canvas, { tooltip, onSelect, onView } = {}) {
     const trails = [];
     const glyphs = [];
     const dots = [];
-    for (const plane of state.live) {
-      let { lon, lat } = plane;
+    state.liveScreen = [];
+    for (let index = 0; index < state.live.length; index += 1) {
+      const plane = state.live[index];
+      const { lon, lat } = estimate(plane, now);
       const heading = plane.track >= 0;
-      if (heading && plane.gs > 0) {
-        const degrees = (plane.gs * Math.min(900, Math.max(0, (now - plane.at) / 1000))) / 3600 / 60;
-        lat += degrees * plane.cosTrack;
-        lon += (degrees * plane.sinTrack) / Math.max(0.2, Math.cos(lat * RAD));
-      }
       const [x, y, z] = project3(lon, lat);
       if (z <= 0.02 || x < -20 || y < -20 || x > state.width + 20 || y > state.height + 20) continue;
+      state.liveScreen.push(x, y, index);
       if (!heading) {
         dots.push(x, y);
         continue;
@@ -350,6 +359,56 @@ export function createGlobe(canvas, { tooltip, onSelect, onView } = {}) {
     for (let i = 0; i < dots.length; i += 2) context.rect(dots[i] - 1, dots[i + 1] - 1, 2, 2);
     context.fill();
     context.globalAlpha = 1;
+    for (const [marked, radius, colour, width] of [
+      [state.hoverPlane, 7, colours.ink2, 1],
+      [state.selectedPlane, 9, colours.ink, 1.75],
+    ]) {
+      if (marked === null) continue;
+      const at = screenOf(marked);
+      if (!at) continue;
+      context.strokeStyle = colour;
+      context.lineWidth = width;
+      context.beginPath();
+      context.arc(at[0], at[1], radius * Math.max(1, scale * 0.8), 0, TAU);
+      context.stroke();
+    }
+  }
+
+  function screenOf(index) {
+    for (let i = 0; i < state.liveScreen.length; i += 3) {
+      if (state.liveScreen[i + 2] === index) return [state.liveScreen[i], state.liveScreen[i + 1]];
+    }
+    return null;
+  }
+
+  function nearestPlane(px, py) {
+    let best = null;
+    let distance = 10; // generous hit area around a ~6px glyph
+    for (let i = 0; i < state.liveScreen.length; i += 3) {
+      const d = Math.hypot(state.liveScreen[i] - px, state.liveScreen[i + 1] - py);
+      if (d < distance) {
+        distance = d;
+        best = state.liveScreen[i + 2];
+      }
+    }
+    return best;
+  }
+
+  function details(index) {
+    const plane = state.live[index];
+    if (!plane) return null;
+    const now = Date.now();
+    const at = estimate(plane, now);
+    return {
+      latitude: at.lat,
+      longitude: at.lon,
+      altitude: plane.alt,
+      speed: plane.gs,
+      track: plane.track,
+      hub: plane.hub,
+      reportAge: Math.max(0, (now - plane.at) / 1000),
+      estimatedSeconds: at.elapsed,
+    };
   }
 
   function tick(time) {
@@ -415,6 +474,8 @@ export function createGlobe(canvas, { tooltip, onSelect, onView } = {}) {
     return best;
   }
 
+  const compass = track => ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(track / 45) % 8];
+
   function showTooltip(arc, px, py) {
     if (!tooltip) return;
     if (!arc) {
@@ -457,18 +518,44 @@ export function createGlobe(canvas, { tooltip, onSelect, onView } = {}) {
       state.hover = arc;
       schedule();
     }
-    canvas.style.cursor = arc ? 'pointer' : 'grab';
-    showTooltip(arc, px, py);
+    const plane = arc ? null : nearestPlane(px, py);
+    if (plane !== state.hoverPlane) {
+      state.hoverPlane = plane;
+      schedule();
+    }
+    canvas.style.cursor = arc || plane !== null ? 'pointer' : 'grab';
+    if (plane !== null) {
+      const info = details(plane);
+      const heading = info.track >= 0 ? ` · heading ${Math.round(info.track)}° ${compass(info.track)}` : '';
+      showTooltip(
+        { title: 'Live aircraft · click for details', detail: `${Math.round(info.altitude).toLocaleString()} ft · ${Math.round(info.speed)} kt${heading}` },
+        px,
+        py,
+      );
+    } else {
+      showTooltip(arc, px, py);
+    }
   });
   canvas.addEventListener('pointerup', event => {
     const drag = state.dragging;
     state.dragging = null;
     canvas.releasePointerCapture(event.pointerId);
-    if (drag && !drag.moved && state.hover) onSelect?.(state.hover.id);
+    if (drag && !drag.moved) {
+      if (state.hover) {
+        onSelect?.(state.hover.id);
+      } else if (state.hoverPlane !== null) {
+        state.selectedPlane = state.hoverPlane;
+        onPlane?.(details(state.selectedPlane));
+      } else if (state.selectedPlane !== null) {
+        state.selectedPlane = null; // clicking open space clears the inspection
+        onPlane?.(null);
+      }
+    }
     schedule();
   });
   canvas.addEventListener('pointerleave', () => {
     state.hover = null;
+    state.hoverPlane = null;
     showTooltip(null);
     schedule();
   });
@@ -523,14 +610,42 @@ export function createGlobe(canvas, { tooltip, onSelect, onView } = {}) {
       schedule();
     },
     setLive(rows, receivedAt) {
+      // Keep an inspected aircraft selected across refreshes by matching where it should be
+      // now with a nearby report of similar heading and altitude. No identity is involved.
+      const previous = state.selectedPlane !== null ? state.live[state.selectedPlane] : null;
+      const expected = previous ? estimate(previous, receivedAt) : null;
       state.live = (Array.isArray(rows) ? rows : [])
         .filter(row => Array.isArray(row) && row.length >= 6 && row.slice(0, 6).every(Number.isFinite))
-        .map(([lon, lat, track, gs, , age]) => ({
-          lon, lat, track, gs,
+        .map(([lon, lat, track, gs, alt, age, hub]) => ({
+          lon, lat, track, gs, alt,
+          hub: Number.isInteger(hub) ? hub : null,
           at: receivedAt - age * 1000,
           sinTrack: Math.sin(track * RAD),
           cosTrack: Math.cos(track * RAD),
         }));
+      state.hoverPlane = null;
+      if (previous) {
+        let best = null;
+        let closest = 20; // km
+        state.live.forEach((plane, index) => {
+          const now = estimate(plane, receivedAt);
+          const km = Math.hypot((now.lat - expected.lat) * 111, (now.lon - expected.lon) * 111 * Math.cos(now.lat * RAD));
+          const turn = Math.abs(((plane.track - previous.track + 540) % 360) - 180);
+          if (km < closest && Math.abs(plane.alt - previous.alt) <= 2000 && (plane.track < 0 || previous.track < 0 || turn <= 30)) {
+            closest = km;
+            best = index;
+          }
+        });
+        state.selectedPlane = best;
+        onPlane?.(best === null ? null : details(best), best === null ? 'lost' : 'refreshed');
+      }
+      schedule();
+    },
+    planeDetails() {
+      return state.selectedPlane === null ? null : details(state.selectedPlane);
+    },
+    clearPlane() {
+      state.selectedPlane = null;
       schedule();
     },
     setTraffic(enabled) {

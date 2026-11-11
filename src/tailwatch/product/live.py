@@ -80,7 +80,7 @@ class LiveFeeds:
         sec_transport: Transport | None = None,
         budget_for: Callable[[Source], Budget] | None = None,
         hub_interval: float = 43.0,
-        warmup_interval: float = 2.0,
+        warmup_interval: float = 5.0,  # faster bursts draw HTTP 429 from ADSB.lol
         sec_interval: float = 60.0,
         idle_after: float = 120.0,
         details_per_poll: int = 4,
@@ -229,7 +229,7 @@ class LiveFeeds:
     def traffic(self) -> dict[str, Any]:
         self.touch()
         now = time.time()
-        merged: dict[str, tuple[float, tuple[float, ...]]] = {}
+        merged: dict[str, tuple[float, tuple[float, ...], str]] = {}
         hubs, excluded = [], {"privacy_listed": 0, "low_or_ground": 0, "stale_or_invalid": 0}
         with self._lock:
             status, detail = self._air.status, self._air.detail
@@ -248,9 +248,13 @@ class LiveFeeds:
                     excluded[key] += value
                 for identity, row in snapshot.aircraft.items():
                     if identity not in merged or snapshot.fetched > merged[identity][0]:
-                        merged[identity] = (snapshot.fetched, row)
+                        merged[identity] = (snapshot.fetched, row, name)
+        hubs.sort(key=lambda h: str(h["name"]))
+        region = {str(h["name"]): index for index, h in enumerate(hubs)}
         # Identity keys are dropped here; sorting removes any order that could carry them.
-        aircraft = sorted([*row, round(now - fetched)] for fetched, row in merged.values())
+        aircraft = sorted(
+            [*row, round(now - fetched), region[hub]] for fetched, row, hub in merged.values()
+        )
         return {
             "enabled": self.air_source is not None,
             "status": status,
@@ -259,9 +263,9 @@ class LiveFeeds:
             "not global and not complete",
             "privacy": "anonymous positions; military, PIA and LADD aircraft and all traffic "
             f"below {airtraffic.MIN_ALTITUDE_FT:,} ft are excluded",
-            "fields": ["lon", "lat", "track", "ground_speed_kt", "altitude_ft", "age_s"],
+            "fields": ["lon", "lat", "track", "ground_speed_kt", "altitude_ft", "age_s", "hub"],
             "aircraft": aircraft,
-            "hubs": sorted(hubs, key=lambda h: str(h["name"])),
+            "hubs": hubs,
             "hub_total": len(self.hubs),
             "detail": detail,
             "provider_quota": (
