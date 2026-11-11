@@ -8,13 +8,13 @@ human approval and, for real data, the active release's exact model.
 import hashlib
 import json
 import math
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import Field, model_validator
+from pydantic import AwareDatetime, Field, model_validator
 from sqlalchemy import Connection, text
 
-from tailwatch.features.runs import FeatureRun
+from tailwatch.features.runs import FeatureRun, PairFeatures
 from tailwatch.product.alerts import append_event, create_episode, events
 from tailwatch.research.models import LogisticArtifact
 from tailwatch.sources.objects import ObjectStore
@@ -158,6 +158,76 @@ def scoring_record(
     ).encode()
 
 
+class Place(Contract):
+    code: str = Field(pattern=r"^[A-Z0-9-]{2,8}$")
+    latitude: float = Field(ge=-90, le=90, allow_inf_nan=False)
+    longitude: float = Field(ge=-180, le=180, allow_inf_nan=False)
+
+
+class PublicVisit(Contract):
+    """Location of one completed visit whose evidence may be displayed externally."""
+
+    evidence_id: NonEmpty
+    origin: Place
+    destination: Place
+    arrived_at: AwareDatetime
+    departed_at: AwareDatetime
+    synthetic: bool
+
+    @model_validator(mode="after")
+    def completed(self) -> "PublicVisit":
+        if self.departed_at <= self.arrived_at or self.origin.code == self.destination.code:
+            raise ValueError("a visit needs distinct places and a completed dwell")
+        return self
+
+
+def public_content(
+    run: FeatureRun,
+    model_hash: str,
+    candidate: ScoredPair,
+    pair: PairFeatures,
+    *,
+    public_evidence: frozenset[str],
+    visits: tuple[PublicVisit, ...] = (),
+) -> dict[str, Any]:
+    """Customer-facing draft content: only permitted evidence and completed visits."""
+    shown = [e for e in candidate.evidence if e in public_evidence]
+    located = []
+    for visit in visits:
+        if visit.evidence_id not in shown:
+            continue
+        if visit.synthetic != run.synthetic or visit.departed_at > run.cutoff:
+            # Locations must be as synthetic as the run and complete before its cutoff.
+            raise ValueError("visit location is not usable for this frozen run")
+        located.append(visit.model_dump(mode="json"))
+    return {
+        "visitor": str(candidate.visitor),
+        "host": str(candidate.host),
+        "as_of": run.cutoff.isoformat(),
+        "synthetic": run.synthetic,
+        "model_hash": model_hash,
+        # Synthetic candidates are plumbing checks, so no probability is published.
+        "calibrated_probability": None if run.synthetic else candidate.calibrated_probability,
+        "probability_status": "synthetic_not_reported" if run.synthetic else "calibrated",
+        "reference_logit": candidate.reference_logit,
+        "contributions": candidate.contributions,
+        # Every frozen signal keeps its availability state; unavailable is never zero.
+        "conditions": {
+            name: {
+                "status": str(signal.status),
+                "value": signal.value,
+                "in_model": name in candidate.contributions,
+                "contribution": candidate.contributions.get(name),
+            }
+            for name, signal in sorted(pair.features.items())
+        },
+        "visits": located,
+        "evidence": shown,
+        "withheld_evidence": len(candidate.evidence) - len(shown),
+        "statement": PUBLIC_STATEMENT,
+    }
+
+
 class DraftResult(Contract):
     visitor: UUID
     host: UUID
@@ -176,11 +246,12 @@ def draft_alerts(
     actor: NonEmpty,
     public_evidence: frozenset[str] = frozenset(),
     score_digest: str | None = None,
+    visits: tuple[PublicVisit, ...] = (),
 ) -> tuple[DraftResult, ...]:
     """Append draft events only. Approval remains a separate human review transition."""
     if not actor.strip():
         raise ValueError("draft actor required")
-    frozen = {(p.visitor, p.host) for p in run.pairs}
+    frozen = {(p.visitor, p.host): p for p in run.pairs}
     model_hash, run_hash = model_digest(artifact), run.digest()
     results = []
     for candidate in candidates:
@@ -210,7 +281,6 @@ def draft_alerts(
                 )
             )
             continue
-        shown = [e for e in candidate.evidence if e in public_evidence]
         body = {
             "internal": {
                 "run_id": str(run.run_id),
@@ -224,23 +294,14 @@ def draft_alerts(
                 "score_digest": score_digest,
                 "score": candidate.model_dump(mode="json"),
             },
-            "public": {
-                "visitor": str(candidate.visitor),
-                "host": str(candidate.host),
-                "as_of": run.cutoff.isoformat(),
-                "synthetic": run.synthetic,
-                "model_hash": model_hash,
-                # Synthetic candidates are plumbing checks, so no probability is published.
-                "calibrated_probability": None
-                if run.synthetic
-                else candidate.calibrated_probability,
-                "probability_status": "synthetic_not_reported" if run.synthetic else "calibrated",
-                "reference_logit": candidate.reference_logit,
-                "contributions": candidate.contributions,
-                "evidence": shown,
-                "withheld_evidence": len(candidate.evidence) - len(shown),
-                "statement": PUBLIC_STATEMENT,
-            },
+            "public": public_content(
+                run,
+                model_hash,
+                candidate,
+                frozen[(candidate.visitor, candidate.host)],
+                public_evidence=public_evidence,
+                visits=visits,
+            ),
         }
         digest = append_event(
             conn, tenant=tenant, episode=episode, kind="draft", actor=actor, body=body

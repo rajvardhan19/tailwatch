@@ -65,3 +65,37 @@ def test_unscorable_pairs_cannot_carry_numeric_scores():
         ScoredPair.model_validate(pair.model_dump() | {"raw_logit": 0.0})
     with pytest.raises(ValueError):
         ScoredPair.model_validate(pair.model_dump() | {"unavailable": {}})
+
+
+def test_public_content_keeps_availability_and_shows_only_permitted_completed_visits():
+    from tailwatch.product.scoring import PublicVisit, model_digest, public_content
+
+    demo = research_demo()
+    run, artifact = FeatureRun.model_validate(demo["run"]), candidate("flight")
+    [visit] = [PublicVisit.model_validate(v) for v in demo["visits"]]
+    scored = next(s for s in score_run(run, artifact) if s.evidence)
+    pair = next(p for p in run.pairs if (p.visitor, p.host) == (scored.visitor, scored.host))
+    args = (run, model_digest(artifact), scored, pair)
+    hidden = public_content(*args, public_evidence=frozenset(), visits=(visit,))
+    assert hidden["visits"] == [] and hidden["withheld_evidence"] == 1
+    assert hidden["conditions"]["intensity"] == {
+        "status": "insufficient_history",
+        "value": None,
+        "in_model": False,
+        "contribution": None,
+    }
+    assert hidden["conditions"]["flight"]["in_model"] is True
+    assert hidden["calibrated_probability"] is None
+    shown = public_content(*args, public_evidence=frozenset(scored.evidence), visits=(visit,))
+    assert [v["destination"]["code"] for v in shown["visits"]] == ["SYN-HBR"]
+    for change in (
+        {"synthetic": False},
+        {"departed_at": run.cutoff + timedelta(seconds=1)},
+    ):
+        bad = visit.model_copy(update=change)
+        with pytest.raises(ValueError, match="visit location"):
+            public_content(*args, public_evidence=frozenset(scored.evidence), visits=(bad,))
+    with pytest.raises(ValueError):
+        PublicVisit.model_validate(
+            demo["visits"][0] | {"departed_at": demo["visits"][0]["arrived_at"]}
+        )

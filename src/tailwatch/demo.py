@@ -77,6 +77,15 @@ def research_demo() -> dict[str, object]:
         pairs=tuple(pairs),
         synthetic=True,
     )
+    # Fictional SYN- codes; coordinates only place the synthetic visit on a map.
+    visit = {
+        "evidence_id": travel.evidence,
+        "origin": {"code": "SYN-NST", "latitude": 41.98, "longitude": -87.9},
+        "destination": {"code": "SYN-HBR", "latitude": 42.36, "longitude": -71.01},
+        "arrived_at": travel.arrived_at.isoformat(),
+        "departed_at": travel.departed_at.isoformat(),
+        "synthetic": True,
+    }
     return {
         "synthetic": True,
         "production_enabled": False,
@@ -85,4 +94,5 @@ def research_demo() -> dict[str, object]:
         "evaluation": "INCONCLUSIVE",
         "run_hash": run.digest(),
         "run": json.loads(run.canonical()),
+        "visits": [visit],
     }
