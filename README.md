@@ -14,6 +14,7 @@ Research project for evidence-linked acquisition signals from corporate aircraft
 - [Aircraft control runbook](docs/runbooks/aircraft-control.md): candidate evidence, dated role-specific decisions, rejection and replay.
 - [Airport proximity runbook](docs/runbooks/airport-proximity.md): typed codes, dated coordinates, WGS84 distances and company deduplication.
 - [Insider-silence backtest](docs/runbooks/research.md#insider-silence-backtest-past-deals): point-in-time test on 19 verified acquisitions and 38 matched peers, with misses and false alarms, shown in the terminal's Past deals view.
+- [Publishing the terminal](docs/runbooks/deploy-public.md): quick Cloudflare link or free Render + Neon hosting, in read-only public mode.
 - [Live research feeds](docs/runbooks/live-research.md): real anonymous ADS-B traffic and the latest SEC Form 4 filings in the terminal, research mode only, with no predictions.
 - [Synthetic operator walkthrough](docs/runbooks/synthetic-walkthrough.md): frozen features → drafts → human approval → verified delivery → audit, step by step.
 - [API and delivery runbook](docs/runbooks/api-delivery.md) and [alert review runbook](docs/runbooks/alert-review.md): endpoints, recipient verification, outbox reconciliation and outcomes.

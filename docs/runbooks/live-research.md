@@ -22,7 +22,7 @@ uv run --locked uvicorn tailwatch.product.server:app --host 127.0.0.1 --port 876
 
 Open http://127.0.0.1:8765. On a live server the page never falls back to synthetic data; it asks for an API key. Provision one with `tailwatch provision-workspace` (customer key) or `tailwatch issue-key` (analyst key). `/live/status` is public, but `/live/traffic` and `/live/filings` require a key, so the data is not served to anonymous visitors.
 
-For a server bound to `127.0.0.1` only, `TAILWATCH_LIVE_LOCAL_VIEW=1` lets the live feeds render without a key. Alerts, the watchlist and analyst routes still need one. Never set it on a server reachable from other machines: it would redistribute the feeds to anyone.
+**Public read-only mode.** `TAILWATCH_PUBLIC_VIEW=1` serves the research feeds to anyone, with no sign-in (`TAILWATCH_LIVE_LOCAL_VIEW=1` is the earlier name for the same setting). It also stops serving the interactive API documentation (`/docs`, `/redoc`, `/openapi.json`). `TAILWATCH_PUBLIC_TENANT=<tenant UUID>` additionally publishes that workspace's approved alerts and track record read-only. Anything that writes still needs that workspace's key: watchlist changes, subscriptions, key revocation and every analyst route. Visitors' watchlists are saved in their own browsers (company CIK and name only). `/live/company/{cik}` returns recent Form 4 filings only for companies the site shows: live-feed issuers seen since start-up, plus the Past deals companies. Lookups are queued onto the SEC worker, so they share its lock, durable budget and journal, and results are cached for 15 minutes. Put a rate-limiting proxy or CDN in front of any public deployment.
 
 The globe draws each aircraft as a heading-oriented glyph with a trail proportional to ground speed. It opens over North America, where most covered traffic is. Drag or use the arrow keys to rotate; zoom with the mouse wheel, the `+`/`−` buttons or keys.
 
@@ -41,5 +41,9 @@ To turn a feed off, set `"enabled": false` for that source, or unset `TAILWATCH_
 - **Coverage is partial.** It is 250 nm circles around the listed hubs, which is neither global nor complete. Stale hubs (over 5 minutes) are dropped rather than shown as current.
 - **Positions are not completed visits.** They do not feed features, aircraft-control links or alerts. Between refreshes the terminal dead-reckons each dot from its reported track and speed, for at most 15 minutes; those positions are estimates.
 - **Form 4 codes are as filed.** Code P is not a reviewed discretionary open-market purchase. Classification still requires `TradeReview` and the amendment rules.
+
+## Attribution and licences
+
+Every page credits ADSB.lol (ODbL 1.0) and SEC EDGAR, and states that the site is a research display, not investment advice. Under ODbL share-alike, the anonymized positions served at `/live/traffic` are a derived database offered under the same licence. ADSB.lol asks to be contacted before production use, so send the courtesy notice before announcing the site. The rights record in `config/sources.live.json` must be updated by the maintainer if the use changes.
 
 Turning these feeds into signals still needs G0–G5: reviewed coverage, an aircraft-control review, real labels, a sealed-test PASS, shadow sessions and a release.

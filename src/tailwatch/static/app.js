@@ -102,7 +102,7 @@ const state = {
   demo: true, key: '', items: [], watch: new Set(), view: 'all', cursor: null,
   selected: null, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches, listView: false,
   live: { available: false, traffic: false, filings: false, open: false }, traffic: null, filings: null,
-  timers: [], centred: false, backtest: null, flight: null,
+  timers: [], centred: false, backtest: null, flight: null, companies: new Map(), companyData: {},
 };
 const LIVE_NOTICE = 'Live research feeds: real ADS-B air traffic (anonymous, privacy-filtered) and the latest SEC Form 4 filings. No predictions are made; reviewed signals appear only when the gated pipeline produces them.';
 const nyTime = value => {
@@ -146,7 +146,8 @@ const signed = value => `${value >= 0 ? '+' : '−'}${Math.abs(value).toFixed(3)
 async function api(path, options = {}) {
   const response = await fetch(path, {
     ...options,
-    headers: { Authorization: `Bearer ${state.key}`, 'Content-Type': 'application/json', ...(options.headers || {}) },
+    // No key means an anonymous read of the published workspace: send no Authorization.
+    headers: { ...(state.key ? { Authorization: `Bearer ${state.key}` } : {}), 'Content-Type': 'application/json', ...(options.headers || {}) },
   });
   if (!response.ok) throw Error(response.status === 401 ? 'Your key is invalid or revoked.' : `Request failed (${response.status}).`);
   return response.json();
@@ -476,6 +477,115 @@ function renderTape(items) {
   }
 }
 
+// ----- browser-saved company watchlist (CIK and name only; never keys) ---------
+
+const WATCH_KEY = 'tailwatch.watchlist.v1';
+
+function loadCompanies() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(WATCH_KEY) || '[]');
+    return new Map(saved.filter(c => /^\d{10}$/.test(c?.cik)).map(c => [c.cik, String(c.name || c.cik).slice(0, 120)]));
+  } catch {
+    return new Map();
+  }
+}
+
+function saveCompanies() {
+  try {
+    localStorage.setItem(WATCH_KEY, JSON.stringify([...state.companies].map(([cik, name]) => ({ cik, name }))));
+  } catch {
+    status('This browser blocked saving the watchlist.');
+  }
+}
+
+function star(cik, name) {
+  const watched = state.companies.has(cik);
+  const button = node('button', watched ? '★' : '☆', 'star');
+  button.type = 'button';
+  button.setAttribute('aria-pressed', String(watched));
+  button.setAttribute('aria-label', `${watched ? 'Stop watching' : 'Watch'} ${name}`);
+  button.title = watched ? 'Remove from watchlist' : 'Add to watchlist';
+  button.addEventListener('click', () => {
+    if (state.companies.has(cik)) state.companies.delete(cik);
+    else state.companies.set(cik, name);
+    saveCompanies();
+    status(state.companies.has(cik) ? `${name} added to your watchlist.` : `${name} removed from your watchlist.`);
+    render();
+    renderLive();
+  });
+  return button;
+}
+
+async function loadCompany(cik) {
+  try {
+    state.companyData[cik] = await api(`/live/company/${cik}`);
+  } catch (error) {
+    state.companyData[cik] = { cik, status: 'unknown', filings: [], error: error.message };
+  }
+  if (state.view === 'watchlist') renderWatchlist();
+}
+
+function renderWatchlist() {
+  const body = $('#watchlist-body');
+  body.replaceChildren();
+  $('#watchlist-meta').textContent = `${state.companies.size} compan${state.companies.size === 1 ? 'y' : 'ies'}`;
+  if (!state.companies.size) {
+    body.append(node('p', 'Star a company in the live insider filings or in Past deals to follow it here. Your list is saved in this browser only.', 'empty'));
+    return;
+  }
+  const feed = state.filings?.filings || [];
+  for (const [cik, name] of state.companies) {
+    const data = state.companyData[cik];
+    const card = node('article', undefined, 'watch-card');
+    const header = node('header');
+    const title = node('div');
+    title.append(node('h4', data?.name || name), node('span', `CIK ${cik}`, 'cik'));
+    header.append(title, star(cik, name));
+    card.append(header);
+    const inFeed = feed.filter(f => f.issuer_cik === cik).length;
+    if (inFeed) card.append(node('p', `${inFeed} filing${inFeed === 1 ? '' : 's'} in the latest live feed`, 'muted-text'));
+    if (!data || data.status === 'pending') {
+      card.append(node('p', 'Loading recent insider filings from SEC EDGAR…', 'muted-text'));
+    } else if (data.status === 'unknown') {
+      card.append(node('p', 'Recent filings are available once this company appears in the live feed or Past deals.', 'muted-text'));
+    } else if (!data.filings.length) {
+      card.append(node('p', data.unavailable ? 'SEC lookup failed; it will retry.' : 'No recent Form 4 filings.', 'muted-text'));
+    } else {
+      const list = node('ul');
+      for (const filing of data.filings) {
+        const row = node('li');
+        const link = node('a', `Form ${filing.form} ↗`);
+        link.href = filing.link;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        row.append(node('span', `Filed ${filing.filed}`), link);
+        list.append(row);
+      }
+      card.append(node('p', 'Latest insider filings (SEC EDGAR)', 'muted-text'), list);
+    }
+    if (!data || ['pending', 'refreshing'].includes(data.status)) {
+      setTimeout(() => {
+        if (state.view === 'watchlist' && state.companies.has(cik)) loadCompany(cik);
+      }, data ? 8000 : 0);
+    }
+    body.append(card);
+  }
+}
+
+function renderLiveKpis() {
+  const traffic = state.traffic;
+  const filings = state.filings?.filings || [];
+  $('#k-aircraft').textContent = traffic ? traffic.aircraft.length.toLocaleString() : '—';
+  $('#k-aircraft-note').textContent = traffic ? `${traffic.hubs.length} of ${traffic.hub_total} regions reporting` : 'Loading regions…';
+  $('#k-filings').textContent = state.filings ? String(filings.length) : '—';
+  $('#k-filings-note').textContent = state.filings?.updated_at ? `Form 4 · updated ${nyTime(state.filings.updated_at)} ET` : 'SEC EDGAR Form 4';
+  const parsed = filings.filter(f => f.details?.status === 'parsed');
+  $('#k-buys').textContent = parsed.length ? `${parsed.filter(f => f.details.headline_code === 'P').length} of ${parsed.length}` : '—';
+  const summary = state.backtest?.summary;
+  $('#k-backtest').textContent = summary ? `${summary.deal.flagged} of ${summary.deal.scored}` : '—';
+  $('#k-backtest-note').textContent = summary ? `deals flagged · ${summary.control.flagged} of ${summary.control.scored} peers also flagged` : 'Insider silence before announcements';
+}
+
 function render() {
   const items = visible();
   if (!items.some(item => item.episode_id === state.selected)) state.selected = items[0]?.episode_id ?? null;
@@ -495,9 +605,20 @@ function render() {
   $('#legend-live').hidden = !(state.traffic?.enabled && !state.demo);
   $('#live-tile').hidden = state.demo || !state.live.available;
   const pastDeals = state.view === 'backtest';
-  $('#filings-panel').hidden = pastDeals || state.demo || !state.live.filings || !(state.key || state.live.open);
-  document.querySelector('.deck').hidden = pastDeals;
-  document.querySelector('.blotter').hidden = pastDeals;
+  const live = !state.demo && state.live.available;
+  const watching = live && state.view === 'watchlist';
+  const signals = state.demo || state.items.length > 0;
+  $('#kpis-live').hidden = !live;
+  $('#kpis-demo').hidden = live;
+  document.querySelector('.notice').hidden = live;
+  document.querySelector('[data-view=track]').hidden = !signals;
+  $('#watchlist-panel').hidden = !watching;
+  $('#watch-selected').hidden = !state.key && !state.demo;
+  $('#filings-panel').hidden = pastDeals || watching || state.demo || !state.live.filings || !(state.key || state.live.open);
+  document.querySelector('.deck').hidden = pastDeals || watching;
+  document.querySelector('.blotter').hidden = pastDeals || watching || !signals;
+  if (live) renderLiveKpis();
+  if (watching) renderWatchlist();
   $('#backtest-panel').hidden = !pastDeals;
   if (pastDeals) renderBacktest();
   const scale = Math.max(0.001, ...state.items.flatMap(item => Object.values(item.public?.contributions || {}).map(v => Math.abs(number(v) ?? 0))));
@@ -575,6 +696,7 @@ function renderLive() {
     $('#globe-note').textContent = `${traffic.source}. ${traffic.coverage}; ${traffic.privacy}. Refresh: ${traffic.refresh}.${health}${quota}`;
   }
   renderFilings();
+  if (!state.demo && state.live.available) renderLiveKpis();
 }
 
 function renderFilings() {
@@ -610,6 +732,7 @@ function renderFilings() {
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
     row.append(detail, link);
+    if (filing.issuer_cik) row.append(star(filing.issuer_cik, filing.issuer_name || filing.issuer_cik));
     list.append(row);
   }
   if (!data.filings.length) list.append(node('li', 'No filings received yet.', 'empty'));
@@ -721,7 +844,7 @@ function dotPlot(report, scored) {
 function dealCard(r, threshold) {
   const card = node('article', undefined, `deal-card${r.flagged ? ' success' : ''}`);
   const heading = node('h4');
-  heading.append(node('span', r.label), node('span', '→', 'arrow'), node('span', r.acquirer || 'acquirer'));
+  heading.append(node('span', r.label), node('span', '→', 'arrow'), node('span', r.acquirer || 'acquirer'), star(r.cik, r.label));
   card.append(heading);
   const verdict = r.excluded ? ['○', `Excluded: ${r.excluded}`, 'muted']
     : r.status !== 'observed' ? ['○', `Not scorable: ${String(r.status).replaceAll('_', ' ')}`, 'muted']
@@ -818,7 +941,11 @@ function renderBacktest() {
       : r.status !== 'observed' ? ['○', String(r.status).replaceAll('_', ' '), 'muted']
       : r.flagged ? ['▲', 'False alarm', 'warning'] : ['✓', 'Correctly not flagged', 'good']));
     row.append(
-      node('td', r.label),
+      (() => {
+        const cell = node('td', `${r.label} `);
+        cell.append(star(r.cik, r.label));
+        return cell;
+      })(),
       node('td', dealNames[r.matched_to] || r.matched_to),
       node('td', r.as_of_deal_date || '—'),
       node('td', typeof r.value === 'number' ? r.value.toFixed(3) : '—', 'numeric'),
@@ -831,8 +958,8 @@ function renderBacktest() {
 }
 
 async function refresh(append = false) {
-  if (!state.demo && !state.key) {
-    // Key-free local live view: nothing tenant-scoped to fetch.
+  if (!state.demo && !state.key && !state.live.publicAlerts) {
+    // Nothing tenant-scoped is published: the live feeds are the whole view.
     render();
     return;
   }
@@ -845,7 +972,7 @@ async function refresh(append = false) {
       const data = await api(path);
       state.items = append ? [...state.items, ...data.items] : data.items;
       state.cursor = data.next_cursor;
-      if (!append) state.watch = new Set((await api('/watchlist')).companies);
+      if (!append && state.key) state.watch = new Set((await api('/watchlist')).companies);
     }
     globe.setTraffic(state.demo);
     render();
@@ -912,31 +1039,7 @@ $('#watch-selected').addEventListener('click', () => {
   const item = state.items.find(entry => entry.episode_id === state.selected);
   if (item) toggleWatch(item.host);
 });
-$('#connect').addEventListener('click', () => $('#settings').showModal());
-$('#close-settings').addEventListener('click', () => $('#settings').close());
 $('#close-detail').addEventListener('click', () => $('#detail').close());
-$('#connect-form').addEventListener('submit', async event => {
-  event.preventDefault();
-  state.key = $('#api-key').value;
-  $('#api-key').value = '';
-  Object.assign(state, { demo: false, items: [], watch: new Set(), selected: null });
-  $('#mode').textContent = state.live.available ? 'LIVE RESEARCH · NO PREDICTIONS' : 'CONNECTED WORKSPACE';
-  $('#notice').textContent = state.live.available
-    ? LIVE_NOTICE
-    : 'Connected to your tenant workspace. Missing inputs stay explicit; real alerts need validated release evidence. No simulated traffic is shown.';
-  $('#settings').close();
-  await refresh();
-  if (state.live.available) startLive();
-});
-$('#demo').addEventListener('click', () => {
-  stopLive();
-  Object.assign(state, { demo: true, key: '', watch: new Set(), selected: null });
-  $('#api-key').value = '';
-  $('#mode').textContent = 'SYNTHETIC DEMO';
-  $('#notice').textContent = 'Fictional companies and synthetic observations. Simulated traffic is not real aircraft. No predictive model is active, and nothing here is an investment recommendation.';
-  $('#settings').close();
-  refresh();
-});
 matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', event => setMotion(!event.matches));
 
 // A live research server never falls back to synthetic data: it asks for a key instead.
@@ -944,7 +1047,7 @@ async function boot() {
   try {
     const response = await fetch('/live/status');
     const data = response.ok ? await response.json() : {};
-    if (data.enabled) state.live = { available: true, traffic: Boolean(data.traffic), filings: Boolean(data.filings), open: Boolean(data.open) };
+    if (data.enabled) state.live = { available: true, traffic: Boolean(data.traffic), filings: Boolean(data.filings), open: Boolean(data.open), publicAlerts: Boolean(data.public_alerts) };
   } catch {
     // Synthetic preview servers have no live routes.
   }
@@ -954,21 +1057,16 @@ async function boot() {
   }
   Object.assign(state, { demo: false, items: [] });
   globe.setTraffic(false);
-  if (state.live.open) {
-    // Local view: live research feeds render immediately; a key adds signals and watchlist.
-    $('#mode').textContent = 'LIVE RESEARCH · LOCAL VIEW';
-    $('#notice').textContent = `${LIVE_NOTICE} Connect a key to see reviewed signals and your watchlist.`;
-    render();
-    startLive();
-    return;
-  }
-  $('#mode').textContent = 'LIVE SERVER · CONNECT';
-  $('#notice').textContent = 'This server streams live research feeds: real ADS-B air traffic and SEC Form 4 filings. Connect with your API key to view them. Nothing here is a prediction.';
-  $('#connect-note').textContent = 'This server runs live research feeds. Connect with a customer or analyst API key to view air traffic and SEC filings. The key stays in memory only.';
+  $('#mode').textContent = 'LIVE';
+  $('#mode').classList.add('live');
+  loadBacktest();
+  if (state.live.publicAlerts) refresh();
   render();
-  $('#settings').showModal();
+  if (state.live.open) startLive();
+  else status('This server does not publish its live feeds.');
 }
 
+state.companies = loadCompanies();
 setMotion(state.motion);
 tickClocks();
 setInterval(tickClocks, 1000);

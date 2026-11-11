@@ -1,9 +1,11 @@
 """ASGI entry point. Default preview is synthetic and needs no database."""
 
+import json
 import os
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import FileResponse
@@ -29,11 +31,16 @@ def _live_feeds(engine: Engine) -> "LiveFeeds | None":
     from tailwatch.sources.objects import LocalObjectStore
     from tailwatch.sources.policy import load_manifest
 
+    known: set[str] = set()
+    backtest = Path("config/backtest.insider-silence.json")
+    if backtest.exists():
+        known = {case["cik"] for case in json.loads(backtest.read_text())["cases"]}
     return LiveFeeds(
         engine,
         load_manifest(Path(manifest)),
         LocalObjectStore(Path(os.environ.get("TAILWATCH_LIVE_OBJECTS", ".data/live-objects"))),
         os.environ.get("TAILWATCH_SEC_USER_AGENT") or None,
+        known_companies=known,
     )
 
 
@@ -45,8 +52,15 @@ if url:
         signer=signer_from_env(),
         reference_source=os.environ.get("TAILWATCH_REFERENCE_SOURCE") or None,
         live=_live_feeds(engine),
-        # Only for servers bound to 127.0.0.1: lets the live feeds render without a key.
-        live_local_view=os.environ.get("TAILWATCH_LIVE_LOCAL_VIEW") == "1",
+        # Public read-only view: research feeds and the operator's published workspace.
+        public_view="1"
+        in {
+            os.environ.get("TAILWATCH_PUBLIC_VIEW"),
+            os.environ.get("TAILWATCH_LIVE_LOCAL_VIEW"),  # earlier name
+        },
+        public_tenant=UUID(tenant)
+        if (tenant := os.environ.get("TAILWATCH_PUBLIC_TENANT"))
+        else None,
     )
 else:
     app = FastAPI(title="Tailwatch synthetic preview")

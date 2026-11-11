@@ -15,8 +15,8 @@
       ],
       "latency_seconds": 60,
       "permission": {
-        "reference": "https://api.adsb.lol/api/openapi.json (read 2026-11-10): free API, data under ODbL 1.0; the maintainer asks to be contacted before production use; responses advertise a 500 requests/day limit (x-ratelimit headers, observed 2026-11-11). Approved for local research display only: anonymous en-route positions, military/PIA/LADD excluded, no redistribution.",
-        "reviewed_by": "Repository maintainer (local research review, 2026-11-10)",
+        "reference": "https://api.adsb.lol/api/openapi.json (read 2026-11-10): free API, data under ODbL 1.0; responses advertise a 500 requests/day limit (x-ratelimit headers, observed 2026-11-11); the maintainer asks to be contacted before production use. Approved 2026-11-11 for public research display: anonymous en-route positions only (military/PIA/LADD and below 5,000 ft excluded), attribution 'ADSB.lol, ODbL 1.0' on every page, the published anonymized positions offered under ODbL 1.0 (share-alike), and a courtesy notice to info@adsb.lol.",
+        "reviewed_by": "Repository maintainer (public research display review, 2026-11-11)",
         "valid_from": "2026-11-11T00:00:00Z",
         "valid_until": "2027-02-11T00:00:00Z",
         "modes": [
@@ -40,7 +40,7 @@
       ],
       "latency_seconds": 60,
       "permission": {
-        "reference": "https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data: public EDGAR data; fair access at most 10 requests/second with a declared User-Agent. Approved for local research display of the latest Form 4 filings; responses are journaled.",
+        "reference": "https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data: public EDGAR data; fair access at most 10 requests/second with a declared User-Agent. Approved 2026-11-11 for public research display of the latest Form 4 filings and recent filings for companies shown on the site; responses are journaled.",
         "reviewed_by": "Repository maintainer (local research review, 2026-11-10)",
         "valid_from": "2026-11-11T00:00:00Z",
         "valid_until": "2027-02-11T00:00:00Z",

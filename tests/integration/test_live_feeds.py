@@ -44,7 +44,7 @@ def test_live_routes_require_a_key_and_hide_unconfigured_feeds(database, tmp_pat
         conn.execute(text("INSERT INTO tenants VALUES(:id,'live-fixture')"), {"id": tenant})
         auth = {"Authorization": "Bearer " + issue_key(conn, tenant, "customer")}
     plain = TestClient(create_app(database))
-    assert plain.get("/live/status").json() == {"enabled": False}
+    assert plain.get("/live/status").json() == {"enabled": False, "public_alerts": False}
     assert plain.get("/live/traffic", headers=auth).status_code == 404
     feeds = LiveFeeds(
         database,
@@ -62,6 +62,7 @@ def test_live_routes_require_a_key_and_hide_unconfigured_feeds(database, tmp_pat
         "traffic": True,
         "filings": False,
         "open": False,
+        "public_alerts": False,
     }
     assert client.get("/live/traffic").status_code == 401
     assert client.get("/live/filings", headers=auth).status_code == 404
@@ -72,7 +73,7 @@ def test_live_routes_require_a_key_and_hide_unconfigured_feeds(database, tmp_pat
         body = client.get("/live/traffic", headers=auth).json()
     assert len(body["aircraft"]) == 1 and "abc123" not in json.dumps(body)
     # Local view (loopback-only servers) renders feeds without a key; nothing else opens.
-    local = TestClient(create_app(database, live=feeds, live_local_view=True))
+    local = TestClient(create_app(database, live=feeds, public_view=True))
     assert local.get("/live/status").json()["open"] is True
     assert local.get("/live/traffic").status_code == 200
     assert local.get("/alerts").status_code == 401
@@ -127,7 +128,12 @@ class FakeSEC:
 def test_sec_poll_journals_responses_parses_details_and_yields_the_worker_lock(database, tmp_path):
     transport = FakeSEC()
     feeds = LiveFeeds(
-        database, isolated(50), LocalObjectStore(tmp_path), AGENT, sec_transport=transport
+        database,
+        isolated(50),
+        LocalObjectStore(tmp_path),
+        AGENT,
+        sec_transport=transport,
+        autostart=False,  # this test drives the SEC worker itself
     )
     with database.connect() as other:
         other.execute(text("SELECT pg_advisory_lock(:key)"), {"key": SEC_WORKER_LOCK})
@@ -150,3 +156,88 @@ def test_sec_poll_journals_responses_parses_details_and_yields_the_worker_lock(d
             {"urls": list(transport.bodies)},
         ).scalar_one()
     assert journaled == len(transport.urls) == 4
+
+
+def test_public_view_reads_the_published_workspace_but_never_writes(database, tmp_path):
+    from tailwatch.product.alerts import append_event, create_episode
+
+    tenant = uuid4()
+    with database.begin() as conn:
+        conn.execute(text("INSERT INTO tenants VALUES(:id,'public-fixture')"), {"id": tenant})
+        episode = create_episode(
+            conn,
+            tenant=tenant,
+            visitor=uuid4(),
+            host=uuid4(),
+            model_hash="fixture",
+            feature_run_hash="fixture",
+            synthetic=True,
+        )
+        for kind in ("draft", "review", "approved"):
+            append_event(
+                conn,
+                tenant=tenant,
+                episode=episode,
+                kind=kind,
+                actor="fixture",
+                body={"public": {"headline": "published"}},
+            )
+    public = TestClient(create_app(database, public_view=True, public_tenant=tenant))
+    assert public.get("/live/status").json()["public_alerts"] is True
+    assert [i["episode_id"] for i in public.get("/alerts").json()["items"]] == [str(episode)]
+    assert public.get(f"/alerts/{episode}/history").status_code == 200
+    for method, path in (
+        ("put", "/watchlist"),
+        ("get", "/subscriptions"),
+        ("get", "/analyst/alerts"),
+        ("post", "/keys/revoke-self"),
+    ):
+        assert getattr(public, method)(path).status_code in {401, 422}
+    for path in ("/docs", "/openapi.json", "/redoc"):
+        assert public.get(path).status_code == 404
+    # Without a published workspace, anonymous reads still need a key.
+    assert TestClient(create_app(database)).get("/alerts").status_code == 401
+
+
+def test_company_lookups_only_serve_known_companies_through_the_sec_worker(database, tmp_path):
+    transport = FakeSEC()
+    cik = "0000000009"
+    submissions = {
+        "cik": cik,
+        "name": "WATCHED CO",
+        "filings": {
+            "recent": {
+                "form": ["8-K", "4", "4/A"],
+                "filingDate": ["2026-11-02", "2026-11-01", "2026-10-30"],
+                "accessionNumber": [
+                    "0000000009-26-000003",
+                    "0000000009-26-000002",
+                    "0000000009-26-000001",
+                ],
+            }
+        },
+    }
+    transport.bodies[f"https://data.sec.gov/submissions/CIK{cik}.json"] = json.dumps(
+        submissions
+    ).encode()
+    feeds = LiveFeeds(
+        database,
+        isolated(50),
+        LocalObjectStore(tmp_path),
+        AGENT,
+        sec_transport=transport,
+        known_companies=[cik],
+        autostart=False,  # this test drives the SEC worker itself
+    )
+    assert feeds.company("0000000008") is None  # not shown on the site: never looked up
+    assert feeds.company("not-a-cik") is None
+    assert feeds.company(cik)["status"] == "pending"
+    feeds._poll_sec(feed=False)
+    result = feeds.company(cik)
+    feeds.stop()
+    assert result["status"] == "live" and result["name"] == "WATCHED CO"
+    assert [f["form"] for f in result["filings"]] == ["4", "4/A"]
+    assert result["filings"][0]["link"].endswith(
+        "/000000000926000002/0000000009-26-000002-index.htm"
+    )
+    assert transport.urls == [f"https://data.sec.gov/submissions/CIK{cik}.json"]

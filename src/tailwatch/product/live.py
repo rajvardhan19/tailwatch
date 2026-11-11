@@ -6,9 +6,11 @@ the SEC worker shares the single-worker advisory lock with `capture-sec`. Nothin
 produces signals, scores or alerts.
 """
 
+import json
+import re
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from typing import Any
@@ -30,6 +32,9 @@ from tailwatch.sources.sec.current import filing_details, parse_current
 from tailwatch.sources.sec.ingest import SECJournal
 
 SEC_WORKER_LOCK = 754019226  # shared with capture_submissions: one SEC worker at a time
+COMPANY_TTL_SECONDS = 900
+COMPANY_QUEUE_LIMIT = 20
+LOOKUPS_PER_POLL = 5
 # ADSB.lol's free API allows ~500 requests/day, so each hub refreshes about every
 # 10 minutes; snapshots stay displayable (as dead-reckoned estimates) for 20 minutes.
 HUB_STALE_SECONDS = 1200
@@ -84,6 +89,8 @@ class LiveFeeds:
         sec_interval: float = 60.0,
         idle_after: float = 120.0,
         details_per_poll: int = 4,
+        known_companies: Iterable[str] = (),
+        autostart: bool = True,
     ) -> None:
         self.engine, self.store, self.user_agent = engine, store, user_agent
         self.air_source = _live(manifest, airtraffic.CAPABILITY)
@@ -104,6 +111,12 @@ class LiveFeeds:
         # Per-hub retry state: name -> (consecutive failures, retry not before, reason).
         self._hub_errors: dict[str, tuple[int, float, str]] = {}
         self._filings = _Filings()
+        # Watchlist lookups: only companies the site shows, queued for the SEC worker.
+        self._known = {c for c in known_companies if re.fullmatch(r"\d{10}", c)}
+        self._companies: dict[str, tuple[float, dict[str, Any]]] = {}
+        self._queue: list[str] = []
+        self._sec_wake = threading.Event()
+        self.autostart = autostart  # tests that drive the workers by hand turn this off
 
     # ----- lifecycle -----------------------------------------------------------------
 
@@ -113,7 +126,7 @@ class LiveFeeds:
     def touch(self) -> None:
         with self._lock:
             self._viewed = time.monotonic()
-            if self._threads:
+            if self._threads or not self.autostart:
                 return
             for target, source in (
                 (self._air_loop, self.air_source),
@@ -126,6 +139,7 @@ class LiveFeeds:
 
     def stop(self) -> None:
         self._stop.set()
+        self._sec_wake.set()
         for thread in self._threads:
             thread.join(timeout=5)
 
@@ -281,14 +295,67 @@ class LiveFeeds:
     # ----- SEC filings ---------------------------------------------------------------
 
     def _sec_loop(self) -> None:
+        last_feed = 0.0
         while self._wait_turn(self._sec, self.sec_interval):
+            # Lookups can wake the worker early; the feed itself stays on its own pace.
+            feed = time.monotonic() - last_feed >= self.sec_interval - 1
             try:
-                self._poll_sec()
+                self._poll_sec(feed=feed)
+                if feed:
+                    last_feed = time.monotonic()
             except (OSError, ValueError, SQLAlchemyError) as error:
                 self._failed(self._sec, error)
-            self._stop.wait(self.sec_interval)
+            with self._lock:
+                queued = bool(self._queue)
+            self._sec_wake.wait(1.0 if queued else self.sec_interval)
+            self._sec_wake.clear()
 
-    def _poll_sec(self) -> None:
+    def company(self, cik: str) -> dict[str, Any] | None:
+        """Cached recent insider filings for a company the site shows; None if unknown."""
+        if not re.fullmatch(r"\d{10}", cik) or self.sec_source is None:
+            return None
+        self.touch()
+        with self._lock:
+            if cik not in self._known:
+                return None
+            fetched, data = self._companies.get(cik, (0.0, {}))
+            fresh = time.time() - fetched < COMPANY_TTL_SECONDS
+            if not fresh and cik not in self._queue and len(self._queue) < COMPANY_QUEUE_LIMIT:
+                self._queue.append(cik)
+                self._sec_wake.set()
+        if data:
+            return data | {"status": "live" if fresh else "refreshing"}
+        return {"cik": cik, "status": "pending", "filings": []}
+
+    def _lookup(self, client: SECClient, cik: str) -> dict[str, Any]:
+        data = json.loads(client.get(f"https://data.sec.gov/submissions/CIK{cik}.json")[0])
+        if not isinstance(data, dict) or str(data.get("cik", "")).zfill(10) != cik:
+            raise ValueError("SEC response identity mismatch")
+        recent = data.get("filings", {}).get("recent", {})
+        rows = zip(
+            recent.get("form", []),
+            recent.get("filingDate", []),
+            recent.get("accessionNumber", []),
+            strict=False,
+        )
+        filings = []
+        for form, filed, accession in rows:
+            if form in {"4", "4/A"} and re.fullmatch(r"\d{10}-\d{2}-\d{6}", str(accession)):
+                folder = str(accession).replace("-", "")
+                filings.append(
+                    {
+                        "form": form,
+                        "filed": filed,
+                        "accession": accession,
+                        "link": f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{folder}/"
+                        f"{accession}-index.htm",
+                    }
+                )
+            if len(filings) == 8:
+                break
+        return {"cik": cik, "name": str(data.get("name", "")), "filings": filings}
+
+    def _poll_sec(self, feed: bool = True) -> None:
         assert self.sec_source is not None and self.user_agent is not None
         with self.engine.connect() as lock:
             acquired = lock.execute(
@@ -309,8 +376,9 @@ class LiveFeeds:
                     record=SECJournal(self.engine, self.store).record_fetch,
                     budget=self.budget_for(self.sec_source),
                 )
-                current = parse_current(client.get(CURRENT_FORM4_URL)[0])
+                current = parse_current(client.get(CURRENT_FORM4_URL)[0]) if feed else []
                 with self._lock:
+                    self._known.update(f.issuer_cik for f in current if f.issuer_cik)
                     for filing in current:
                         if filing.accession not in self._filings.filings:
                             self._filings.order.append(filing.accession)
@@ -325,8 +393,9 @@ class LiveFeeds:
                     pending = [f for f in current if f.accession not in self._filings.details][
                         : self.details_per_poll
                     ]
-                    self._sec.status, self._sec.failures = "live", 0
-                    self._sec.updated_at = time.time()
+                    if feed:
+                        self._sec.status, self._sec.failures = "live", 0
+                        self._sec.updated_at = time.time()
                 for filing in pending:
                     try:
                         details = filing_details(client, filing)
@@ -336,6 +405,18 @@ class LiveFeeds:
                         details = {"status": "unavailable", "reason": type(error).__name__}
                     with self._lock:
                         self._filings.details[filing.accession] = details
+                with self._lock:
+                    lookups = self._queue[:LOOKUPS_PER_POLL]
+                    del self._queue[:LOOKUPS_PER_POLL]
+                for cik in lookups:
+                    try:
+                        result = self._lookup(client, cik)
+                    except PolicyDenied:
+                        raise
+                    except (OSError, ValueError) as error:
+                        result = {"cik": cik, "unavailable": type(error).__name__, "filings": []}
+                    with self._lock:
+                        self._companies[cik] = (time.time(), result)
             finally:
                 lock.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": SEC_WORKER_LOCK})
                 lock.commit()

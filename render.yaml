@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: tailwatch-research
+    name: tailwatch
     runtime: docker
     plan: free
     healthCheckPath: /
@@ -9,5 +9,19 @@ services:
         value: 8000
       - key: TAILWATCH_ENABLE_PRODUCTION
         value: "0"
-      # Add a separately provisioned Neon database through Render's secret UI.
-      # Do not commit credentials. Without a database this serves the synthetic demo.
+      # Public read-only research site: live feeds and Past deals, no sign-in.
+      - key: TAILWATCH_PUBLIC_VIEW
+        value: "1"
+      - key: TAILWATCH_LIVE_MANIFEST
+        value: config/sources.live.json
+      # Free instances have no persistent disk: raw SEC responses are kept only until a
+      # restart. Attach a disk or object storage for evidence-grade retention.
+      - key: TAILWATCH_LIVE_OBJECTS
+        value: /tmp/tailwatch-objects
+      # Secrets: set these in the Render dashboard, never in this file.
+      - key: TAILWATCH_DATABASE_URL  # Neon PostgreSQL URL (postgresql+psycopg://...)
+        sync: false
+      - key: TAILWATCH_SEC_USER_AGENT  # "Your Name your@email" (SEC fair-access policy)
+        sync: false
+      - key: TAILWATCH_PUBLIC_TENANT  # optional: publish one workspace's approved alerts
+        sync: false

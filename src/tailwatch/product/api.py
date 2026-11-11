@@ -93,9 +93,12 @@ def create_app(
     signer: LinkSigner | None = None,
     reference_source: str | None = None,
     live: "LiveFeeds | None" = None,
-    live_local_view: bool = False,
+    public_view: bool = False,
+    public_tenant: UUID | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="Tailwatch", version="0.1.0")
+    # A public deployment serves no interactive API documentation.
+    hidden = {"docs_url": None, "redoc_url": None, "openapi_url": None} if public_view else {}
+    app = FastAPI(title="Tailwatch", version="0.1.0", **hidden)  # type: ignore[arg-type]
 
     def visible(
         principal: "Principal",
@@ -152,6 +155,12 @@ def create_app(
         if row is None:
             raise HTTPException(401, "Invalid or revoked API key")
         return Principal(tenant=row["tenant_id"], scope=row["scope"], key_hash=digest)
+
+    def reader(authorization: Annotated[str | None, Header()] = None) -> Principal:
+        """Read-only routes: a key's own tenant, or the operator's published workspace."""
+        if authorization is None and public_tenant is not None:
+            return Principal(tenant=public_tenant, scope="customer", key_hash="public-view")
+        return authenticate(authorization)
 
     def analyst(principal: Annotated[Principal, Depends(authenticate)]) -> Principal:
         if principal.scope != "analyst":
@@ -242,13 +251,21 @@ def create_app(
         # Public: says only whether research feeds are configured, never their data.
         status: dict[str, Any] = {"enabled": live is not None}
         if live is not None:
-            status |= live.enabled() | {"open": live_local_view}
+            status |= live.enabled() | {"open": public_view}
+        status["public_alerts"] = public_tenant is not None
         return status
 
     def live_viewer(authorization: Annotated[str | None, Header()] = None) -> None:
-        # Local view is for loopback-only servers; everywhere else a key is required.
-        if not live_local_view:
+        # Public view serves the research feeds openly; otherwise a key is required.
+        if not public_view:
             authenticate(authorization)
+
+    @app.get("/live/company/{cik}", dependencies=[Depends(live_viewer)])
+    def live_company(cik: str) -> dict[str, Any]:
+        result = live.company(cik) if live is not None else None
+        if result is None:
+            raise HTTPException(404, "Only companies shown on this site can be looked up")
+        return result
 
     @app.get("/live/traffic", dependencies=[Depends(live_viewer)])
     def live_traffic() -> dict[str, Any]:
@@ -271,7 +288,7 @@ def create_app(
 
     @app.get("/alerts")
     def alerts(
-        principal: Annotated[Principal, Depends(authenticate)],
+        principal: Annotated[Principal, Depends(reader)],
         limit: Annotated[int, Query(ge=1, le=100)] = 25,
         after: UUID | None = None,
     ) -> dict[str, Any]:
@@ -282,9 +299,7 @@ def create_app(
         }
 
     @app.get("/alerts/{episode}")
-    def alert(
-        episode: UUID, principal: Annotated[Principal, Depends(authenticate)]
-    ) -> dict[str, Any]:
+    def alert(episode: UUID, principal: Annotated[Principal, Depends(reader)]) -> dict[str, Any]:
         page = visible(principal, " AND a.episode_id=:episode", {"episode": episode}, 1, None)
         if not page["rows"]:
             raise HTTPException(404, "Alert not found")
@@ -294,7 +309,7 @@ def create_app(
     def pair_history(
         visitor: UUID,
         host: UUID,
-        principal: Annotated[Principal, Depends(authenticate)],
+        principal: Annotated[Principal, Depends(reader)],
         limit: Annotated[int, Query(ge=1, le=100)] = 25,
         after: UUID | None = None,
     ) -> dict[str, Any]:
@@ -358,7 +373,7 @@ def create_app(
     @app.get("/companies/{company}/signals")
     def company_signals(
         company: UUID,
-        principal: Annotated[Principal, Depends(authenticate)],
+        principal: Annotated[Principal, Depends(reader)],
         limit: Annotated[int, Query(ge=1, le=100)] = 25,
         after: UUID | None = None,
     ) -> dict[str, Any]:
@@ -383,9 +398,7 @@ def create_app(
         }
 
     @app.get("/alerts/{episode}/history")
-    def history(
-        episode: UUID, principal: Annotated[Principal, Depends(authenticate)]
-    ) -> dict[str, Any]:
+    def history(episode: UUID, principal: Annotated[Principal, Depends(reader)]) -> dict[str, Any]:
         with engine.connect() as conn:
             meta = conn.execute(
                 text(
@@ -432,7 +445,7 @@ def create_app(
 
     @app.get("/track-record")
     def track_record(
-        principal: Annotated[Principal, Depends(authenticate)],
+        principal: Annotated[Principal, Depends(reader)],
         limit: Annotated[int, Query(ge=1, le=100)] = 25,
         after: UUID | None = None,
     ) -> dict[str, Any]:
