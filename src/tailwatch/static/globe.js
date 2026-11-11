@@ -99,7 +99,7 @@ export function createGlobe(canvas, { tooltip, onSelect, onView } = {}) {
   const grid = graticule();
   const state = {
     lon: -40, lat: 24, width: 0, height: 0, dpr: 1, radius: 0, cx: 0, cy: 0,
-    land: new Float32Array(0), arcs: [], traffic: [], selected: null, hover: null,
+    land: new Float32Array(0), arcs: [], traffic: [], live: [], selected: null, hover: null,
     motion: true, dragging: null, target: null, last: 0, frame: 0, clock: 0,
   };
   let colours = {};
@@ -111,6 +111,7 @@ export function createGlobe(canvas, { tooltip, onSelect, onView } = {}) {
       sphereHigh: read('--sphere-high'), sphereLow: read('--sphere-low'), glow: read('--glow'),
       land: read('--land'), grid: read('--grid'), axis: read('--axis'), accent: read('--accent'),
       ring: read('--surface'), ink: read('--ink'), ink2: read('--ink-2'), traffic: read('--muted'),
+      live: read('--live'),
     };
   }
 
@@ -208,7 +209,8 @@ export function createGlobe(canvas, { tooltip, onSelect, onView } = {}) {
       if (z <= 0) continue;
       const x = cx + R * (land[i] * cl - land[i + 2] * sl);
       const y = cy - R * (land[i + 1] * cp - z1 * sp);
-      context.globalAlpha = 0.3 + 0.55 * z; // limb darkening gives depth
+      // Limb darkening gives depth; land recedes further when live traffic is drawn.
+      context.globalAlpha = (0.3 + 0.55 * z) * (state.live.length ? 0.6 : 1);
       context.fillRect(x - size / 2, y - size / 2, size, size);
     }
     context.globalAlpha = 1;
@@ -232,6 +234,8 @@ export function createGlobe(canvas, { tooltip, onSelect, onView } = {}) {
       }
     }
     context.globalAlpha = 1;
+
+    if (state.live.length) drawLive(frame);
 
     context.lineCap = 'round';
     context.lineJoin = 'round';
@@ -269,6 +273,50 @@ export function createGlobe(canvas, { tooltip, onSelect, onView } = {}) {
         }
       }
     }
+  }
+
+  // Real, anonymous ADS-B positions, dead-reckoned from their reported track and ground
+  // speed for at most two minutes. Dots plus heading ticks: shape, not only hue, sets
+  // them apart from land.
+  function drawLive([cl, sl, cp, sp]) {
+    const now = Date.now();
+    const R = state.radius;
+    const dots = [];
+    context.beginPath();
+    for (const plane of state.live) {
+      let { lon, lat } = plane;
+      if (plane.track >= 0 && plane.gs > 0) {
+        const degrees = (plane.gs * Math.min(120, Math.max(0, (now - plane.at) / 1000))) / 3600 / 60;
+        lat += degrees * plane.cosTrack;
+        lon += (degrees * plane.sinTrack) / Math.max(0.2, Math.cos(lat * RAD));
+      }
+      const l = lon * RAD;
+      const p = lat * RAD;
+      const c = Math.cos(p);
+      const vx = c * Math.sin(l);
+      const vy = Math.sin(p);
+      const vz = c * Math.cos(l);
+      const z1 = vx * sl + vz * cl;
+      const z = vy * sp + z1 * cp;
+      if (z <= 0.02) continue;
+      const x = state.cx + R * (vx * cl - vz * sl);
+      const y = state.cy - R * (vy * cp - z1 * sp);
+      dots.push(x, y);
+      if (plane.track >= 0) {
+        // Screen-space heading tick, foreshortened toward the limb.
+        const length = 4 * Math.max(0.35, z);
+        context.moveTo(x, y);
+        context.lineTo(x + length * plane.sinTrack, y - length * plane.cosTrack);
+      }
+    }
+    context.globalAlpha = 0.4;
+    context.strokeStyle = colours.live;
+    context.lineWidth = 1;
+    context.stroke();
+    context.globalAlpha = 0.8;
+    context.fillStyle = colours.live;
+    for (let i = 0; i < dots.length; i += 2) context.fillRect(dots[i] - 0.8, dots[i + 1] - 0.8, 1.6, 1.6);
+    context.globalAlpha = 1;
   }
 
   function tick(time) {
@@ -408,6 +456,17 @@ export function createGlobe(canvas, { tooltip, onSelect, onView } = {}) {
     setArcs(arcs) {
       state.arcs = arcs.map(buildArc);
       if (state.hover && !state.arcs.some(arc => arc.id === state.hover.id)) state.hover = null;
+      schedule();
+    },
+    setLive(rows, receivedAt) {
+      state.live = (Array.isArray(rows) ? rows : [])
+        .filter(row => Array.isArray(row) && row.length >= 6 && row.slice(0, 6).every(Number.isFinite))
+        .map(([lon, lat, track, gs, , age]) => ({
+          lon, lat, track, gs,
+          at: receivedAt - age * 1000,
+          sinTrack: Math.sin(track * RAD),
+          cosTrack: Math.cos(track * RAD),
+        }));
       schedule();
     },
     setTraffic(enabled) {

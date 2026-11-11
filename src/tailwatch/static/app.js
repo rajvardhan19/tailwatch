@@ -101,6 +101,12 @@ let focused;
 const state = {
   demo: true, key: '', items: [], watch: new Set(), view: 'all', cursor: null,
   selected: null, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches, listView: false,
+  live: { available: false, traffic: false, filings: false }, traffic: null, filings: null, timers: [],
+};
+const LIVE_NOTICE = 'Live research feeds: real ADS-B air traffic (anonymous, privacy-filtered) and the latest SEC Form 4 filings. No predictions are made; reviewed signals appear only when the gated pipeline produces them.';
+const nyTime = value => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '--:--' : new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
 };
 
 function node(tag, text, className) {
@@ -224,10 +230,11 @@ function renderConditions(item, scale) {
   body.replaceChildren();
   gates.replaceChildren();
   $('#open-evidence').disabled = !item;
+  document.querySelector('.conditions').classList.toggle('empty-state', !item);
   $('#watch-selected').disabled = !item;
   if (!item) {
     $('#conditions-pair').textContent = 'No signal selected';
-    $('#conditions-meta').textContent = 'Select a signal to inspect its inputs.';
+    $('#conditions-meta').textContent = state.demo || state.items.length ? 'Select a signal to inspect its inputs.' : 'No reviewed signals yet. Live feeds are research inputs, not signals or predictions.';
     return;
   }
   const p = item.public || {};
@@ -358,6 +365,14 @@ function renderTape(items) {
     if (item.outcome && item.outcome !== 'pending') events.push([`OUTCOME ${item.outcome.toUpperCase()}`, `${visitor} → ${host}`]);
     if (!visitsOf(item).length) events.push(['LOCATION', `${visitor} → ${host} · withheld, not inferred`]);
   }
+  const traffic = state.traffic;
+  if (traffic?.enabled) events.push(['AIR', `${traffic.aircraft.length.toLocaleString()} aircraft en route across ${traffic.hubs.length} hubs · ADSB.lol`]);
+  for (const filing of (state.filings?.filings || []).slice(0, 12)) {
+    const details = filing.details || {};
+    const code = details.status === 'parsed' && details.headline_code ? ` · code ${details.headline_code}` : '';
+    const owners = (filing.reporting || []).slice(0, 2).join(', ') || 'reporting owner pending';
+    events.push([`FORM ${filing.form}`, `${filing.issuer_name || 'issuer pending'} · ${owners}${code} · ${nyTime(filing.filed_at)} ET`]);
+  }
   events.push(['DELIVERY', state.demo ? 'disabled · no active release' : 'verified subscriptions only']);
   const tape = $('#tape');
   tape.replaceChildren();
@@ -388,6 +403,9 @@ function render() {
   $('#cards').hidden = state.view === 'track' && state.demo;
   $('#load-more').hidden = !state.cursor;
   $('#legend-simulated').hidden = !state.demo;
+  $('#legend-live').hidden = !(state.traffic?.enabled && !state.demo);
+  $('#live-tile').hidden = state.demo || !state.live.available;
+  $('#filings-panel').hidden = state.demo || !state.live.filings || !state.key;
   const scale = Math.max(0.001, ...state.items.flatMap(item => Object.values(item.public?.contributions || {}).map(v => Math.abs(number(v) ?? 0))));
   renderRows(state.view === 'track' && state.demo ? [] : items);
   renderGlobe(items);
@@ -440,6 +458,103 @@ async function toggleWatch(company) {
     status(next.has(company) ? 'Company added to watchlist.' : 'Company removed from watchlist.');
   } catch (error) {
     status(error.message);
+  }
+}
+
+function renderLive() {
+  const traffic = state.traffic;
+  const filings = state.filings;
+  const parts = [];
+  if (traffic) parts.push(`${traffic.hubs.length} hubs reporting`);
+  if (filings) parts.push(`${filings.filings.length} Form 4 filings`);
+  $('#live-value').textContent = traffic ? `${traffic.aircraft.length.toLocaleString()} aircraft` : filings ? 'SEC only' : 'Connecting…';
+  $('#live-note').textContent = parts.join(' · ') || 'Waiting for the first poll';
+  if (traffic) {
+    const arcs = $('#hud-arcs').textContent.split(' · ')[0];
+    $('#hud-arcs').textContent = `${arcs} · ${traffic.aircraft.length.toLocaleString()} AIRCRAFT`;
+    const health = traffic.status === 'live' ? '' : ` Air feed ${traffic.status.replaceAll('_', ' ')}; showing the last fresh data.`;
+    $('#globe-note').textContent = `${traffic.source}. ${traffic.coverage}; ${traffic.privacy}.${health}`;
+  }
+  renderFilings();
+}
+
+function renderFilings() {
+  const list = $('#filings');
+  const data = state.filings;
+  list.replaceChildren();
+  if (!data) return;
+  const updated = data.updated_at ? `updated ${nyTime(data.updated_at)} ET` : 'waiting for the first poll';
+  $('#filings-meta').textContent = `${data.status.replaceAll('_', ' ')} · ${updated}`;
+  for (const filing of data.filings) {
+    const details = filing.details || {};
+    const row = node('li', undefined, 'filing');
+    row.append(node('time', nyTime(filing.filed_at)), node('span', `FORM ${filing.form}`, 'tag form-tag'));
+    const who = node('span', filing.issuer_name || 'Issuer pending', 'issuer');
+    who.append(node('span', (filing.reporting || []).join(', ') || 'Reporting owner pending', 'owners'));
+    row.append(who);
+    const detail = node('span', undefined, 'detail');
+    if (details.status === 'parsed') {
+      const first = details.transactions?.[0];
+      detail.append(node('strong', details.headline_code || '—'), document.createTextNode(` ${details.headline_label}`));
+      if (first?.shares) {
+        const price = first.price ? ` @ $${Number(first.price).toLocaleString(undefined, { maximumFractionDigits: 4 })}` : '';
+        detail.append(document.createTextNode(` · ${Number(first.shares).toLocaleString()} sh${price}`));
+      }
+      if (details.plan_10b5_1 === true) detail.append(document.createTextNode(' · 10b5-1 plan'));
+      const roles = details.owners?.[0]?.roles?.join(', ');
+      if (roles) detail.append(document.createTextNode(` · ${roles}`));
+    } else {
+      detail.textContent = details.status === 'unavailable' ? 'Details unavailable' : 'Details pending';
+    }
+    const link = node('a', 'SEC filing ↗');
+    link.href = filing.link;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    row.append(detail, link);
+    list.append(row);
+  }
+  if (!data.filings.length) list.append(node('li', 'No filings received yet.', 'empty'));
+}
+
+async function pollTraffic() {
+  try {
+    const data = await api('/live/traffic');
+    state.traffic = data;
+    globe.setLive(data.aircraft, Date.now());
+    render();
+    renderLive();
+  } catch (error) {
+    status(`Live air traffic: ${error.message}`);
+  }
+}
+
+async function pollFilings() {
+  try {
+    state.filings = await api('/live/filings');
+    render();
+    renderLive();
+  } catch (error) {
+    status(`Live SEC filings: ${error.message}`);
+  }
+}
+
+function stopLive() {
+  for (const timer of state.timers) clearInterval(timer);
+  state.timers = [];
+  state.traffic = null;
+  state.filings = null;
+  globe.setLive([], Date.now());
+}
+
+function startLive() {
+  stopLive();
+  if (state.live.traffic) {
+    pollTraffic();
+    state.timers.push(setInterval(pollTraffic, 15000));
+  }
+  if (state.live.filings) {
+    pollFilings();
+    state.timers.push(setInterval(pollFilings, 30000));
   }
 }
 
@@ -521,12 +636,16 @@ $('#connect-form').addEventListener('submit', async event => {
   state.key = $('#api-key').value;
   $('#api-key').value = '';
   Object.assign(state, { demo: false, items: [], watch: new Set(), selected: null });
-  $('#mode').textContent = 'CONNECTED WORKSPACE';
-  $('#notice').textContent = 'Connected to your tenant workspace. Missing inputs stay explicit; real alerts need validated release evidence. No simulated traffic is shown.';
+  $('#mode').textContent = state.live.available ? 'LIVE RESEARCH · NO PREDICTIONS' : 'CONNECTED WORKSPACE';
+  $('#notice').textContent = state.live.available
+    ? LIVE_NOTICE
+    : 'Connected to your tenant workspace. Missing inputs stay explicit; real alerts need validated release evidence. No simulated traffic is shown.';
   $('#settings').close();
   await refresh();
+  if (state.live.available) startLive();
 });
 $('#demo').addEventListener('click', () => {
+  stopLive();
   Object.assign(state, { demo: true, key: '', watch: new Set(), selected: null });
   $('#api-key').value = '';
   $('#mode').textContent = 'SYNTHETIC DEMO';
@@ -536,7 +655,29 @@ $('#demo').addEventListener('click', () => {
 });
 matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', event => setMotion(!event.matches));
 
+// A live research server never falls back to synthetic data: it asks for a key instead.
+async function boot() {
+  try {
+    const response = await fetch('/live/status');
+    const data = response.ok ? await response.json() : {};
+    if (data.enabled) state.live = { available: true, traffic: Boolean(data.traffic), filings: Boolean(data.filings) };
+  } catch {
+    // Synthetic preview servers have no live routes.
+  }
+  if (!state.live.available) {
+    refresh();
+    return;
+  }
+  Object.assign(state, { demo: false, items: [] });
+  globe.setTraffic(false);
+  $('#mode').textContent = 'LIVE SERVER · CONNECT';
+  $('#notice').textContent = 'This server streams live research feeds: real ADS-B air traffic and SEC Form 4 filings. Connect with your API key to view them. Nothing here is a prediction.';
+  $('#connect-note').textContent = 'This server runs live research feeds. Connect with a customer or analyst API key to view air traffic and SEC filings. The key stays in memory only.';
+  render();
+  $('#settings').showModal();
+}
+
 setMotion(state.motion);
 tickClocks();
 setInterval(tickClocks, 1000);
-refresh();
+boot();

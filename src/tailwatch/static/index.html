@@ -33,6 +33,7 @@
     <article class="tile"><h2>Model status</h2><p class="tile-value" id="model-status">Not activated</p><p class="tile-note" id="model-note">Sealed evaluation required</p></article>
     <article class="tile"><h2>Delivery</h2><p class="tile-value" id="delivery-status">Disabled</p><p class="tile-note" id="delivery-note">No external notifications</p></article>
     <article class="tile"><h2>Resolved outcomes</h2><p class="tile-value" id="outcomes">—</p><p class="tile-note">Pending outcomes never count as failures</p></article>
+    <article class="tile live-tile" id="live-tile" hidden><h2>Live research feeds</h2><p class="tile-value" id="live-value">—</p><p class="tile-note" id="live-note">Connecting…</p></article>
   </section>
 
   <div class="deck">
@@ -53,6 +54,7 @@
       <figcaption class="legend">
         <span class="key"><span class="key-line" aria-hidden="true"></span>Completed visit · reviewed evidence</span>
         <span class="key" id="legend-simulated"><span class="key-dot" aria-hidden="true"></span>Simulated traffic · not real aircraft</span>
+        <span class="key" id="legend-live" hidden><span class="key-dot live" aria-hidden="true"></span>Live ADS-B traffic · anonymous</span>
         <span class="legend-note" id="globe-note">Only visits whose evidence may be displayed are drawn.</span>
       </figcaption>
     </figure>
@@ -69,6 +71,15 @@
       </div>
     </aside>
   </div>
+
+  <section class="panel filings" id="filings-panel" aria-labelledby="filings-title" hidden>
+    <div class="panel-head">
+      <h2 id="filings-title"><span class="eyebrow">LIVE · SEC EDGAR</span>Latest Form 4 insider filings</h2>
+      <p class="panel-meta" id="filings-meta">Waiting for the first poll…</p>
+    </div>
+    <ol class="filings-list" id="filings"></ol>
+    <p class="filings-note">Transaction codes as filed with the SEC. They are not reviewed classifications, signals or recommendations.</p>
+  </section>
 
   <section class="panel blotter" aria-labelledby="desk-title">
     <div class="panel-head">
@@ -105,7 +116,7 @@
 <dialog id="settings" aria-labelledby="settings-title">
   <form id="connect-form">
     <div class="dialog-head"><h2 id="settings-title">Connect this workspace</h2><button type="button" class="icon-button" id="close-settings" aria-label="Close connection settings">×</button></div>
-    <p>Use a customer API key for this server. The key stays in memory and is cleared when you reload.</p>
+    <p id="connect-note">Use a customer API key for this server. The key stays in memory and is cleared when you reload.</p>
     <label for="api-key">Customer API key</label>
     <input id="api-key" type="password" autocomplete="off" required maxlength="150">
     <div class="form-actions"><button type="button" id="demo" class="ghost">Use synthetic demo</button><button class="primary">Connect</button></div>

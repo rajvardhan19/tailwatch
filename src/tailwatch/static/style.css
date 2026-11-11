@@ -24,6 +24,7 @@
   --sphere-low: #070e15;
   --glow: rgba(57, 135, 229, 0.18);
   --land: #5683b3;
+  --live: #199e70;
   --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
@@ -123,7 +124,7 @@ main { grid-row: 2; min-width: 0; padding: 18px 24px 28px; display: grid; grid-t
 .notice-icon { display: grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--warning); color: #0b0b0b; font-weight: 800; font-size: 12px; }
 
 /* KPI stat tiles */
-.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
 .tile { padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
 .tile h2 { font-size: 12px; font-weight: 500; color: var(--ink-2); }
 .tile-value { margin: 6px 0 2px; font-size: 26px; font-weight: 600; line-height: 1.2; }
@@ -154,6 +155,21 @@ main { grid-row: 2; min-width: 0; padding: 18px 24px 28px; display: grid; grid-t
 .key { display: inline-flex; align-items: center; gap: 8px; }
 .key-line { width: 18px; height: 2px; border-radius: 1px; background: var(--accent); }
 .key-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); opacity: 0.8; }
+.key-dot.live { width: 8px; height: 8px; border-radius: 2px; background: var(--live); opacity: 1; }
+.live-tile .tile-value { color: var(--ink); }
+
+/* Live SEC filings */
+.panel-meta { margin: 0; font-family: var(--mono); font-size: 11.5px; color: var(--muted); text-align: right; }
+.filings-list { list-style: none; margin: 0; padding: 0 18px; max-height: 420px; overflow-y: auto; }
+.filing { display: grid; grid-template-columns: 54px 70px minmax(0, 1.4fr) minmax(0, 1.6fr) auto; gap: 12px; align-items: baseline; padding: 9px 0; border-bottom: 1px solid var(--grid); font-size: 13px; }
+.filing time { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.filing .issuer { color: var(--ink); font-weight: 600; }
+.filing .owners { display: block; color: var(--ink-2); font-size: 12px; font-weight: 400; }
+.filing .detail { color: var(--ink-2); font-size: 12.5px; }
+.filing .detail strong { color: var(--ink); font-family: var(--mono); }
+.filing a { color: var(--ink-2); font-size: 12px; text-decoration: none; white-space: nowrap; }
+.filing a:hover { color: var(--ink); text-decoration: underline; }
+.filings-note { margin: 0; padding: 10px 18px 14px; font-size: 12px; color: var(--muted); }
 .legend-note { color: var(--muted); }
 .legend .legend-note { margin-left: auto; }
 
@@ -278,7 +294,11 @@ main.confirm-card .button { margin-top: 12px; }
   .blotter-tools, .search, .search input { width: 100%; }
   .globe-stage { height: 320px; }
   .legend .legend-note { margin-left: 0; }
+  .filing { grid-template-columns: 54px minmax(0, 1fr) auto; }
+  .filing .form-tag, .filing .detail { grid-column: 2 / -1; }
   .contribution { min-width: 112px; gap: 6px; }
   .contribution .numeric { min-width: 46px; }
   .conditions-table th, .conditions-table td { padding-right: 4px; }
 }
+.filing .form-tag { justify-self: start; white-space: nowrap; }
+.conditions.empty-state .subhead, .conditions.empty-state .gates, .conditions.empty-state .conditions-actions { display: none; }
