@@ -98,11 +98,21 @@ const OUTCOMES = {
 };
 
 let focused;
+// Sections rebuild only when their data changes: rebuilding unchanged content on every
+// live poll reset scroll positions in browsers without scroll anchoring.
+const signatures = {};
+function changed(key, value) {
+  const signature = JSON.stringify(value);
+  if (signatures[key] === signature) return false;
+  signatures[key] = signature;
+  return true;
+}
 const state = {
   demo: true, key: '', items: [], watch: new Set(), view: 'all', cursor: null,
   selected: null, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches, listView: false,
   live: { available: false, traffic: false, filings: false, open: false }, traffic: null, filings: null,
   timers: [], centred: false, backtest: null, flight: null, companies: new Map(), companyData: {},
+  categories: null, signals: null,
 };
 const LIVE_NOTICE = 'Live research feeds: real ADS-B air traffic (anonymous, privacy-filtered) and the latest SEC Form 4 filings. No predictions are made; reviewed signals appear only when the gated pipeline produces them.';
 const nyTime = value => {
@@ -197,6 +207,7 @@ fetch('/assets/land.json')
   .catch(() => status('Land outlines unavailable; evidence arcs still render.'));
 
 function renderGlobe(items) {
+  if (!changed('globe', [items.map(item => [item.episode_id, item.public?.visits]), state.selected])) return;
   const arcs = [];
   const list = $('#visit-list');
   list.replaceChildren();
@@ -400,6 +411,8 @@ function renderConditions(item, scale) {
 // ----- signal desk ---------------------------------------------------------
 
 function renderRows(items) {
+  const watched = [...state.watch, ...state.companies.keys()];
+  if (!changed('rows', [items.map(i => [i.episode_id, i.outcome]), state.selected, watched, state.view])) return;
   const cards = $('#cards');
   cards.replaceChildren();
   for (const item of items) {
@@ -464,6 +477,7 @@ function renderTape(items) {
     events.push([`FORM ${filing.form}`, `${filing.issuer_name || 'issuer pending'} · ${owners}${code} · ${nyTime(filing.filed_at)} ET`]);
   }
   events.push(['DELIVERY', state.demo ? 'disabled · no active release' : 'verified subscriptions only']);
+  if (!changed('tape', events)) return;
   const tape = $('#tape');
   tape.replaceChildren();
   // A second, hidden copy makes the scrolling loop seamless; assistive tech reads one.
@@ -526,6 +540,8 @@ async function loadCompany(cik) {
 }
 
 function renderWatchlist() {
+  const feedCiks = (state.filings?.filings || []).map(f => f.issuer_cik);
+  if (!changed('watchlist', [[...state.companies], state.companyData, feedCiks])) return;
   const body = $('#watchlist-body');
   body.replaceChildren();
   $('#watchlist-meta').textContent = `${state.companies.size} compan${state.companies.size === 1 ? 'y' : 'ies'}`;
@@ -581,12 +597,21 @@ function renderLiveKpis() {
   $('#k-filings-note').textContent = state.filings?.updated_at ? `Form 4 · updated ${nyTime(state.filings.updated_at)} ET` : 'SEC EDGAR Form 4';
   const parsed = filings.filter(f => f.details?.status === 'parsed');
   $('#k-buys').textContent = parsed.length ? `${parsed.filter(f => f.details.headline_code === 'P').length} of ${parsed.length}` : '—';
-  const summary = state.backtest?.summary;
-  $('#k-backtest').textContent = summary ? `${summary.deal.flagged} of ${summary.deal.scored}` : '—';
-  $('#k-backtest-note').textContent = summary ? `deals flagged · ${summary.control.flagged} of ${summary.control.scored} peers also flagged` : 'Insider silence before announcements';
+  const summary = state.categories?.summary;
+  $('#k-backtest').textContent = summary ? `${summary.deal.insider_triggered} of ${summary.deal.observed}` : '—';
+  $('#k-backtest-note').textContent = summary
+    ? `deals with an insider cluster before announcement · ${summary.control.insider_triggered} of ${summary.control.observed} peers · flight untested`
+    : 'Signal categories on past deals';
 }
 
 function render() {
+  const scroll = window.scrollY;
+  draw();
+  // Safety net: a refresh must never move the reader.
+  if (Math.abs(window.scrollY - scroll) > 1) window.scrollTo({ top: scroll, behavior: 'instant' });
+}
+
+function draw() {
   const items = visible();
   if (!items.some(item => item.episode_id === state.selected)) state.selected = items[0]?.episode_id ?? null;
   const resolved = state.items.filter(item => item.outcome && item.outcome !== 'pending').length;
@@ -618,6 +643,7 @@ function render() {
   document.querySelector('.deck').hidden = pastDeals || watching;
   document.querySelector('.blotter').hidden = pastDeals || watching || !signals;
   if (live) renderLiveKpis();
+  if (live) renderSignals();
   if (watching) renderWatchlist();
   $('#backtest-panel').hidden = !pastDeals;
   if (pastDeals) renderBacktest();
@@ -702,6 +728,9 @@ function renderLive() {
 function renderFilings() {
   const list = $('#filings');
   const data = state.filings;
+  const rows = (data?.filings || []).map(f => [f.accession, f.details?.status, f.details?.headline_code]);
+  if (!changed('filings', [data?.status, data?.updated_at, rows, [...state.companies.keys()]])) return;
+  const keep = list.scrollTop;
   list.replaceChildren();
   if (!data) return;
   const updated = data.updated_at ? `updated ${nyTime(data.updated_at)} ET` : 'waiting for the first poll';
@@ -736,6 +765,7 @@ function renderFilings() {
     list.append(row);
   }
   if (!data.filings.length) list.append(node('li', 'No filings received yet.', 'empty'));
+  list.scrollTop = keep;
 }
 
 async function pollTraffic() {
@@ -752,6 +782,53 @@ async function pollTraffic() {
     renderLive();
   } catch (error) {
     status(`Live air traffic: ${error.message}`);
+  }
+}
+
+async function pollSignals() {
+  try {
+    state.signals = await api('/live/signals');
+    renderSignals();
+  } catch (error) {
+    status(`Live signals: ${error.message}`);
+  }
+}
+
+const CATEGORY_TITLES = { flight: 'Flight-triggered', insider: 'Insider cluster buying', both: 'Both' };
+
+function renderSignals() {
+  const data = state.signals;
+  $('#signals-panel').hidden = !data || state.view !== 'all';
+  if (!data || !changed('signals', [data, [...state.companies.keys()]])) return;
+  $('#signals-meta').textContent = `${data.checked} compan${data.checked === 1 ? 'y' : 'ies'} checked for insider clusters${data.queued ? ` · ${data.queued} queued` : ''}`;
+  const columns = $('#signal-columns');
+  columns.replaceChildren();
+  for (const key of ['flight', 'insider', 'both']) {
+    const info = data.categories[key];
+    const column = node('section', undefined, 'signal-column');
+    const heading = node('h3');
+    heading.append(node('span', CATEGORY_TITLES[key]), node('span', String(info.items.length), 'count'));
+    column.append(heading, node('p', data.rules[key], 'rule'));
+    for (const item of info.items) {
+      const card = node('article', undefined, 'signal-item');
+      const top = node('header');
+      top.append(node('strong', item.name || item.cik), star(item.cik, item.name || item.cik));
+      card.append(top);
+      card.append(node('p', `${item.buyers} distinct buyers, trades ${item.window_start} to ${item.window_end}`));
+      card.append(node('p', `Public since ${item.public_on} · ${Number(item.shares || 0).toLocaleString()} shares bought`));
+      card.append(node('p', (item.buyer_names || []).slice(0, 4).join(' · ')));
+      column.append(card);
+    }
+    if (!info.items.length) {
+      const why = info.status === 'unavailable'
+        ? info.reason
+        : `No cluster right now among the companies checked. Companies are checked when their filings show an open-market purchase.`;
+      column.append(node('p', why, 'reason'));
+      for (const near of info.building || []) {
+        column.append(node('p', `Building: ${near.name || near.cik} · ${near.buyers} buyers so far`, 'reason'));
+      }
+    }
+    columns.append(column);
   }
 }
 
@@ -783,12 +860,20 @@ function startLive() {
   if (state.live.filings) {
     pollFilings();
     state.timers.push(setInterval(pollFilings, 30000));
+    pollSignals();
+    state.timers.push(setInterval(pollSignals, 30000));
   }
 }
 
 // ----- past deals (research backtest) ---------------------------------------
 
 async function loadBacktest() {
+  try {
+    const categories = await fetch('/assets/categories.json');
+    state.categories = categories.ok ? await categories.json() : null;
+  } catch {
+    state.categories = null;
+  }
   try {
     const response = await fetch('/assets/backtest.json');
     state.backtest = response.ok ? await response.json() : { error: 'No backtest report has been generated yet.' };
@@ -807,10 +892,10 @@ function svg(tag, attributes = {}) {
   return element;
 }
 
-function dotPlot(report, scored) {
+function dotPlot(report, scored, measured) {
   // One shared axis; deal targets emphasised, peers recessive; threshold as a reference line.
   // Drawn at the container width so text keeps its intended size.
-  const width = Math.max(480, Math.round($('#backtest-body').clientWidth || 820)), height = 150, left = 120, right = 24;
+  const width = Math.max(480, Math.round(measured || 820)), height = 150, left = 120, right = 24;
   const max = Math.max(report.threshold * 2, ...scored.map(r => r.value));
   const x = value => left + (value / max) * (width - left - right);
   const plot = svg('svg', { viewBox: `0 0 ${width} ${height}`, class: 'dotplot', role: 'img', 'aria-label': 'Insider silence values for scored deal targets and matched peers, with the pre-registered threshold. The cards and table below list every value.' });
@@ -878,21 +963,37 @@ function dealCard(r, threshold) {
   return card;
 }
 
+let backtestLoading = false;
+
 function renderBacktest() {
   const body = $('#backtest-body');
   const report = state.backtest;
-  body.replaceChildren();
   if (!report) {
-    body.append(node('p', 'Loading backtest…', 'empty'));
-    loadBacktest();
+    if (!backtestLoading) {
+      backtestLoading = true;
+      body.replaceChildren(node('p', 'Loading backtest…', 'empty'));
+      loadBacktest();
+    }
     return;
   }
+  // Measure before clearing: reading layout from an emptied panel shrank the page.
+  const measured = body.clientWidth;
+  if (!changed('backtest', [report.generated_at, report.error, [...state.companies.keys()], state.categories?.generated_at])) return;
+  $('#backtest-heading').textContent = state.categories ? 'Signal categories on verified past acquisitions' : 'Insider silence before verified acquisitions';
+  body.replaceChildren();
   if (report.error) {
     body.append(node('p', `${report.error} Run: tailwatch backtest config/backtest.insider-silence.json …`, 'empty'));
     return;
   }
+  const categories = state.categories;
+  if (categories) body.append(...categorySection(categories));
+  const earlier = node('details', undefined, 'earlier');
+  earlier.append(node('summary', 'Earlier study: insider silence with a 0.5 threshold (superseded by the categories above)'));
+  body.append(earlier);
+  const host = earlier;
   const { summary, results, threshold } = report;
-  $('#backtest-meta').textContent = `registered ${report.registered_at.slice(0, 10)} · generated ${report.generated_at.slice(0, 10)} · config ${report.config_digest.slice(0, 12)}`;
+  const latest = categories || report;
+  $('#backtest-meta').textContent = `rules registered ${latest.registered_at.slice(0, 10)} · generated ${latest.generated_at.slice(0, 10)} · source ${report.config_digest.slice(0, 12)}`;
   const tiles = node('div', undefined, 'backtest-tiles');
   const tile = (label, value, note) => {
     const article = node('article', undefined, 'tile');
@@ -910,9 +1011,9 @@ function renderBacktest() {
   const list = node('ul');
   for (const item of report.limitations) list.append(node('li', item));
   caveats.append(list);
-  body.append(tiles, caveats);
+  host.append(tiles, caveats);
   const scored = results.filter(r => r.status === 'observed' && typeof r.value === 'number');
-  if (scored.length) body.append(dotPlot(report, scored));
+  if (scored.length) host.append(dotPlot(report, scored, measured));
   const deals = results.filter(r => r.role === 'deal');
   const groups = [
     ['Flagged before announcement', deals.filter(r => r.flagged)],
@@ -921,12 +1022,12 @@ function renderBacktest() {
   ];
   for (const [title, members] of groups) {
     if (!members.length) continue;
-    body.append(node('h3', `${title} · ${members.length}`, 'subgroup'));
+    host.append(node('h3', `${title} · ${members.length}`, 'subgroup'));
     const cards = node('div', undefined, 'deal-cards');
     for (const r of members.sort((a, b) => (b.value ?? -1) - (a.value ?? -1))) cards.append(dealCard(r, threshold));
-    body.append(cards);
+    host.append(cards);
   }
-  body.append(node('h3', `Matched peers (no deal within 180 days) · ${results.filter(r => r.role === 'control').length}`, 'subgroup'));
+  host.append(node('h3', `Matched peers (no deal within 180 days) · ${results.filter(r => r.role === 'control').length}`, 'subgroup'));
   const table = node('table', undefined, 'peer-table');
   const head = node('tr');
   for (const title of ['Peer', 'Matched deal', 'Scored as of', 'Silence', 'Result']) head.append(node('th', title));
@@ -954,10 +1055,98 @@ function renderBacktest() {
     tbody.append(row);
   }
   table.append(thead, tbody);
-  body.append(table);
+  host.append(scrollable(table));
 }
 
-async function refresh(append = false) {
+function scrollable(table) {
+  // Wide tables scroll inside their own box so the page stays phone-width.
+  const box = node('div', undefined, 'table-scroll');
+  box.append(table);
+  return box;
+}
+
+function insiderChip(r) {
+  const insider = r.insider || {};
+  if (r.excluded) return chip(['○', `Excluded: ${r.excluded}`, 'muted']);
+  if (insider.status !== 'observed') return chip(['○', 'Insider: incomplete data', 'muted']);
+  if (insider.triggered) return chip(['✓', `Insider cluster: ${insider.buyers} buyers, public ${insider.lead_days} days before`, 'good']);
+  return chip(['○', `Insider: no cluster (${insider.buyers} of ${state.categories.rules.insider.min_buyers} buyers)`, 'muted']);
+}
+
+function categorySection(report) {
+  const parts = [];
+  const { summary, rules } = report;
+  const tiles = node('div', undefined, 'backtest-tiles');
+  const tile = (label, value, note) => {
+    const article = node('article', undefined, 'tile');
+    article.append(node('h2', label), node('p', value, 'tile-value'), node('p', note, 'tile-note'));
+    return article;
+  };
+  tiles.append(
+    tile('Flight-triggered', 'Not testable', 'Needs historical flights and reviewed company-aircraft links'),
+    tile('Insider cluster before announcement', `${summary.deal.insider_triggered} of ${summary.deal.observed}`, `deal targets · ${interval(summary.deal.rate_interval)}`),
+    tile('Insider cluster at matched peers', `${summary.control.insider_triggered} of ${summary.control.observed}`, `peers · ${interval(summary.control.rate_interval)}`),
+    tile('Both', 'Not testable', 'Needs the flight category'),
+  );
+  const caveats = node('div', undefined, 'caveats');
+  caveats.append(node('strong', `Each category fires on an explicit rule registered ${report.registered_at.slice(0, 10)}, not a tuned score. Insider: ${rules.insider.min_buyers}+ distinct insiders buying on the open market within ${rules.insider.window_days} days. Flight: ${rules.flight.description} Both: the two within ${rules.both_window_days} days.`));
+  const list = node('ul');
+  for (const item of report.limitations) list.append(node('li', item));
+  caveats.append(list);
+  const deals = report.results.filter(r => r.role === 'deal');
+  parts.push(tiles, caveats, node('h3', `Deal targets · ${deals.length}`, 'subgroup'));
+  const cards = node('div', undefined, 'deal-cards');
+  const buyers = r => r.insider?.buyers ?? -1;
+  for (const r of [...deals].sort((a, b) => buyers(b) - buyers(a))) {
+    const card = node('article', undefined, `deal-card${r.category ? ' success' : ''}`);
+    const heading = node('h4');
+    heading.append(node('span', r.label), node('span', '→', 'arrow'), node('span', r.acquirer || 'acquirer'), star(r.cik, r.label));
+    const chips = node('div', undefined, 'category-chips');
+    chips.append(chip(['○', 'Flight: not testable', 'muted']), insiderChip(r), chip(['○', 'Both: not testable', 'muted']));
+    const facts = [];
+    if (r.announced) facts.push(`Announced ${r.announced}`);
+    if (r.cutoff) facts.push(`evaluated with filings public by ${r.cutoff.slice(0, 10)}`);
+    if (r.insider) facts.push(`${r.insider.form4_filings} Form 4 filings read`);
+    card.append(heading, chips, node('p', facts.join(' · ')));
+    if (r.insider?.buyer_names?.length) card.append(node('p', `Buyers: ${r.insider.buyer_names.slice(0, 4).join(' · ')}`));
+    if (r.evidence) {
+      const link = node('a', 'Announcement 8-K on EDGAR ↗');
+      link.href = r.evidence;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      card.append(link);
+    }
+    cards.append(card);
+  }
+  parts.push(cards);
+  const peers = report.results.filter(r => r.role === 'control');
+  parts.push(node('h3', `Matched peers (no deal within 180 days) · ${peers.length}`, 'subgroup'));
+  const table = node('table', undefined, 'peer-table');
+  const head = node('tr');
+  for (const title of ['Peer', 'Matched deal', 'Evaluated as of', 'Most buyers in 14 days', 'Result']) head.append(node('th', title));
+  const thead = node('thead');
+  thead.append(head);
+  const tbody = node('tbody');
+  const dealNames = Object.fromEntries(deals.map(d => [d.cik, d.label]));
+  for (const r of peers) {
+    const row = node('tr');
+    const name = node('td', `${r.label} `);
+    name.append(star(r.cik, r.label));
+    const result = node('td');
+    result.append(r.excluded || r.insider?.status !== 'observed' ? insiderChip(r)
+      : r.category ? chip(['▲', 'Insider cluster (false alarm)', 'warning'])
+      : chip(['✓', 'No cluster', 'good']));
+    row.append(name, node('td', dealNames[r.matched_to] || r.matched_to || '—'),
+      node('td', r.cutoff ? r.cutoff.slice(0, 10) : '—'),
+      node('td', r.insider ? String(r.insider.buyers) : '—', 'numeric'), result);
+    tbody.append(row);
+  }
+  table.append(thead, tbody);
+  parts.push(scrollable(table));
+  return parts;
+}
+
+async function refresh(append = false, announce = false) {
   if (!state.demo && !state.key && !state.live.publicAlerts) {
     // Nothing tenant-scoped is published: the live feeds are the whole view.
     render();
@@ -976,7 +1165,7 @@ async function refresh(append = false) {
     }
     globe.setTraffic(state.demo);
     render();
-    status(state.demo ? 'Synthetic workspace refreshed.' : 'Workspace refreshed.');
+    if (announce) status(state.demo ? 'Synthetic workspace refreshed.' : 'Workspace refreshed.');
   } catch (error) {
     status(error.message);
   }
@@ -1024,7 +1213,7 @@ for (const button of document.querySelectorAll('[data-view]')) {
   });
 }
 $('#search').addEventListener('input', render);
-$('#refresh').addEventListener('click', () => refresh());
+$('#refresh').addEventListener('click', () => refresh(false, true));
 $('#load-more').addEventListener('click', () => refresh(true));
 $('#motion').addEventListener('click', () => setMotion(!state.motion));
 $('#view-globe').addEventListener('click', () => setListView(false));

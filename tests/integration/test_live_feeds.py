@@ -122,6 +122,8 @@ class FakeSEC:
     def get(self, url, headers):
         self.urls.append(url)
         assert headers["User-Agent"] == AGENT
+        if url not in self.bodies:
+            return Response(404, b"", {})  # like EDGAR: unknown documents are 404s
         return Response(200, self.bodies[url], {})
 
 
@@ -155,7 +157,8 @@ def test_sec_poll_journals_responses_parses_details_and_yields_the_worker_lock(d
             text("SELECT count(*) FROM sec_fetches WHERE url = ANY(:urls)"),
             {"urls": list(transport.bodies)},
         ).scalar_one()
-    assert journaled == len(transport.urls) == 4
+    # Feed, two detail requests, and the cluster check for the issuer with a purchase.
+    assert journaled == 4 and transport.urls[-1].endswith("/submissions/CIK0000000001.json")
 
 
 def test_public_view_reads_the_published_workspace_but_never_writes(database, tmp_path):
@@ -241,3 +244,53 @@ def test_company_lookups_only_serve_known_companies_through_the_sec_worker(datab
         "/000000000926000002/0000000009-26-000002-index.htm"
     )
     assert transport.urls == [f"https://data.sec.gov/submissions/CIK{cik}.json"]
+
+
+def test_purchases_in_the_feed_trigger_a_live_insider_cluster_check(database, tmp_path):
+    from datetime import UTC, datetime, timedelta
+
+    transport = FakeSEC()
+    template = Path("tests/fixtures/sec/form4.xml").read_text()
+    today = datetime.now(UTC).date()
+    recent: dict[str, list[str]] = {
+        "form": [],
+        "filingDate": [],
+        "accessionNumber": [],
+        "primaryDocument": [],
+        "items": [],
+    }
+    for index, owner in enumerate(("2", "5", "6"), start=1):
+        accession = f"0000000001-26-90000{index}"
+        trade = today - timedelta(days=2 + index)
+        body = template.replace(
+            "<rptOwnerCik>2</rptOwnerCik>", f"<rptOwnerCik>{owner}</rptOwnerCik>"
+        )
+        body = body.replace("<value>2026-01-01</value>", f"<value>{trade.isoformat()}</value>")
+        folder = accession.replace("-", "")
+        transport.bodies[f"https://www.sec.gov/Archives/edgar/data/1/{folder}/form4.xml"] = (
+            body.encode()
+        )
+        recent["form"].append("4")
+        recent["filingDate"].append((trade + timedelta(days=1)).isoformat())
+        recent["accessionNumber"].append(accession)
+        recent["primaryDocument"].append("xslF345X05/form4.xml")
+        recent["items"].append("")
+    transport.bodies["https://data.sec.gov/submissions/CIK0000000001.json"] = json.dumps(
+        {"cik": "0000000001", "name": "EXAMPLE CORP", "filings": {"recent": recent, "files": []}}
+    ).encode()
+    feeds = LiveFeeds(
+        database,
+        isolated(80),
+        LocalObjectStore(tmp_path),
+        AGENT,
+        sec_transport=transport,
+        autostart=False,
+    )
+    feeds._poll_sec()
+    signals = feeds.signals()
+    feeds.stop()
+    insider = signals["categories"]["insider"]["items"]
+    assert [(i["cik"], i["buyers"], i["triggered"]) for i in insider] == [("0000000001", 3, True)]
+    assert insider[0]["name"] == "EXAMPLE CORP" and insider[0]["public_on"]
+    assert signals["categories"]["flight"]["status"] == "unavailable"
+    assert signals["categories"]["both"]["items"] == []

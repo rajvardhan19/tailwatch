@@ -47,3 +47,17 @@ Legacy score-only evaluation remains available for diagnostics, but an otherwise
 - The peer exclusion cannot tell a target proxy from an acquirer proxy, so a peer that files a merger proxy as an acquirer is also dropped (conservative). In the first run this removed Diamondback Energy.
 - A case whose filings cannot all be retrieved is reported as missing source rather than scored on partial data. In the first run, transient connection failures left Cadence (April 2021) unscored.
 - This is research evidence about one signal. It is not a validated model, a sealed evaluation or release-gate evidence. Changing the threshold after seeing these results would make any rerun exploratory, and it must be labelled as such.
+
+## Signal categories (Past deals, live Signals panel)
+
+Signals fire in three categories, each on an explicit rule registered in `config/signal-categories.json` (2026-11-11) rather than a tuned score threshold. Every signal therefore says why it fired.
+
+- **Insider cluster buying.** At least 3 distinct insiders buy on the open market (non-derivative Form 4 code P) with trade dates inside any 14-day window. Any reporting-owner type counts: directors, officers and 10% owners. Joint filers on one filing count as one buyer. A cluster becomes public on the filing date of the third distinct buyer; nothing filed later is used.
+- **Flight-triggered.** A reviewed company aircraft completes a ground stop of at least one hour near another tracked company's offices. This needs human-reviewed company-aircraft links and completed-visit coverage. The live air feed is anonymous, so this category cannot fire yet.
+- **Both.** Flight and insider triggers for the same company within 30 days.
+
+`tailwatch backtest-categories config/signal-categories.json --report src/tailwatch/static/backtest.json --objects .data/sec-objects --output src/tailwatch/static/categories.json` replays the categories over the insider-silence cases. It needs `TAILWATCH_DATABASE_URL` but makes no network requests: every filing comes from the SEC journal recorded by the insider-silence backtest. Each case is evaluated as of the day before its cutoff with filings filed by then. A case with any filing missing from the journal is reported incomplete, never scored on partial data. A test checks that the committed report matches the registered rules and its source report.
+
+**First result (2026-11-11).** No insider cluster before any of the 19 verified deals (95% CI 0–17%), and none at the 37 scored peers (0–9%). The most buyers seen in any 14-day window was 2 (Charles River, a peer). This sample gives no evidence that insider cluster buying anticipates takeovers. That is expected, because insiders who know about a pending deal generally may not buy. Flight and both are not testable.
+
+The live Signals panel (`/live/signals`) applies the same insider rule to issuers whose latest Form 4s show open-market purchases. At most two companies are checked per SEC poll, each at most every six hours, reading up to 20 recent Form 4s within the window. Checks share the SEC worker's lock, durable budget and journal. These are research signals: they are not model output, they do not pass any release gate, and they are not alerts or investment advice.

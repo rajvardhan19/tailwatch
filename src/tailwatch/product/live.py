@@ -12,12 +12,13 @@ import threading
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import Engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
+from tailwatch.features.categories import ClusterRule, insider_cluster, purchases
 from tailwatch.operations.runtime import DurableBudget
 from tailwatch.sources import airtraffic
 from tailwatch.sources.objects import ObjectStore
@@ -35,6 +36,14 @@ SEC_WORKER_LOCK = 754019226  # shared with capture_submissions: one SEC worker a
 COMPANY_TTL_SECONDS = 900
 COMPANY_QUEUE_LIMIT = 20
 LOOKUPS_PER_POLL = 5
+CLUSTER_CHECKS_PER_POLL = 2
+CLUSTER_RECHECK_SECONDS = 6 * 3600
+CLUSTER_QUEUE_LIMIT = 30
+CLUSTER_FILINGS_LIMIT = 20
+FLIGHT_PENDING = (
+    "Needs human-reviewed company-aircraft links and completed-visit coverage; "
+    "the live air feed is anonymous, so no flight signal can fire yet."
+)
 # ADSB.lol's free API allows ~500 requests/day, so each hub refreshes about every
 # 10 minutes; snapshots stay displayable (as dead-reckoned estimates) for 20 minutes.
 HUB_STALE_SECONDS = 1200
@@ -91,6 +100,7 @@ class LiveFeeds:
         details_per_poll: int = 4,
         known_companies: Iterable[str] = (),
         autostart: bool = True,
+        cluster_rule: ClusterRule | None = None,
     ) -> None:
         self.engine, self.store, self.user_agent = engine, store, user_agent
         self.air_source = _live(manifest, airtraffic.CAPABILITY)
@@ -117,6 +127,10 @@ class LiveFeeds:
         self._queue: list[str] = []
         self._sec_wake = threading.Event()
         self.autostart = autostart  # tests that drive the workers by hand turn this off
+        # Insider-cluster checks for issuers whose filings show open-market purchases.
+        self.cluster_rule = cluster_rule or ClusterRule()
+        self._clusters: dict[str, tuple[float, dict[str, Any]]] = {}
+        self._cluster_queue: list[str] = []
 
     # ----- lifecycle -----------------------------------------------------------------
 
@@ -355,6 +369,76 @@ class LiveFeeds:
                 break
         return {"cik": cik, "name": str(data.get("name", "")), "filings": filings}
 
+    def _check_cluster(self, client: SECClient, cik: str) -> dict[str, Any]:
+        """Insider purchases filed in the last window: is there a cluster right now?"""
+        from tailwatch.research.backtest import _fetch, filings
+
+        today = datetime.now(UTC).date()
+        start = today - timedelta(days=self.cluster_rule.window_days + 3)
+        name, rows = filings(client, cik, start)
+        recent = [
+            r
+            for r in rows
+            if r["form"] in {"4", "4/A"} and date.fromisoformat(r["filingDate"]) >= start
+        ][:CLUSTER_FILINGS_LIMIT]
+        found = []
+        for row in recent:
+            parsed = _fetch(client, cik, row)
+            if parsed is not None:
+                found += purchases(parsed, date.fromisoformat(row["filingDate"]))
+        rule = ClusterRule(
+            min_buyers=self.cluster_rule.min_buyers,
+            window_days=self.cluster_rule.window_days,
+            lookback_days=self.cluster_rule.window_days + 3,
+        )
+        result = insider_cluster(found, as_of=today, rule=rule)
+        return {
+            "cik": cik,
+            "name": name,
+            "checked_at": datetime.now(UTC).isoformat(),
+            "filings_read": len(recent),
+            **{k: (v.isoformat() if isinstance(v, date) else v) for k, v in result.items()},
+        }
+
+    def signals(self) -> dict[str, Any]:
+        """Three categories. Insider clusters are live; flight and both await reviewed links."""
+        self.touch()
+        with self._lock:
+            checked = [r for _, r in self._clusters.values() if "unavailable" not in r]
+            queued = len(self._cluster_queue)
+        fired = sorted(
+            (r for r in checked if r.get("triggered")),
+            key=lambda r: str(r.get("public_on")),
+            reverse=True,
+        )
+        building = sorted(
+            (r for r in checked if not r.get("triggered") and r.get("buyers", 0) >= 2),
+            key=lambda r: -int(r.get("buyers", 0)),
+        )
+        rule = self.cluster_rule
+        return {
+            "enabled": self.sec_source is not None,
+            "rules": {
+                "insider": f"{rule.min_buyers}+ distinct insiders (any reporting-owner type, "
+                f"joint filers once) buying on the open market (Form 4 code P) within "
+                f"{rule.window_days} days, using filings already public.",
+                "flight": "A reviewed company aircraft completes a ground stop of at least one "
+                "hour near another tracked company's offices.",
+                "both": "Flight and insider triggers for the same company within 30 days.",
+            },
+            "categories": {
+                "flight": {"status": "unavailable", "reason": FLIGHT_PENDING, "items": []},
+                "insider": {"status": "live", "items": fired, "building": building[:6]},
+                "both": {
+                    "status": "unavailable",
+                    "reason": "Needs the flight category.",
+                    "items": [],
+                },
+            },
+            "checked": len(checked),
+            "queued": queued,
+        }
+
     def _poll_sec(self, feed: bool = True) -> None:
         assert self.sec_source is not None and self.user_agent is not None
         with self.engine.connect() as lock:
@@ -405,6 +489,30 @@ class LiveFeeds:
                         details = {"status": "unavailable", "reason": type(error).__name__}
                     with self._lock:
                         self._filings.details[filing.accession] = details
+                with self._lock:
+                    for accession, details in self._filings.details.items():
+                        codes = {t.get("code") for t in details.get("transactions", [])}
+                        cik = self._filings.filings.get(accession, {}).get("issuer_cik")
+                        checked = self._clusters.get(cik or "", (0.0, {}))[0]
+                        if (
+                            "P" in codes
+                            and cik
+                            and time.time() - checked > CLUSTER_RECHECK_SECONDS
+                            and cik not in self._cluster_queue
+                            and len(self._cluster_queue) < CLUSTER_QUEUE_LIMIT
+                        ):
+                            self._cluster_queue.append(cik)
+                    checks = self._cluster_queue[:CLUSTER_CHECKS_PER_POLL]
+                    del self._cluster_queue[:CLUSTER_CHECKS_PER_POLL]
+                for cik in checks:
+                    try:
+                        result = self._check_cluster(client, cik)
+                    except PolicyDenied:
+                        raise
+                    except (OSError, ValueError) as error:
+                        result = {"cik": cik, "unavailable": type(error).__name__}
+                    with self._lock:
+                        self._clusters[cik] = (time.time(), result)
                 with self._lock:
                     lookups = self._queue[:LOOKUPS_PER_POLL]
                     del self._queue[:LOOKUPS_PER_POLL]

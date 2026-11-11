@@ -260,6 +260,12 @@ def create_app(
         if not public_view:
             authenticate(authorization)
 
+    @app.get("/live/signals", dependencies=[Depends(live_viewer)])
+    def live_signals() -> dict[str, Any]:
+        if live is None or not live.enabled()["filings"]:
+            raise HTTPException(404, "Live signals are not configured")
+        return live.signals()
+
     @app.get("/live/company/{cik}", dependencies=[Depends(live_viewer)])
     def live_company(cik: str) -> dict[str, Any]:
         result = live.company(cik) if live is not None else None

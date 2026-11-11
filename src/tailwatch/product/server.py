@@ -35,12 +35,19 @@ def _live_feeds(engine: Engine) -> "LiveFeeds | None":
     backtest = Path("config/backtest.insider-silence.json")
     if backtest.exists():
         known = {case["cik"] for case in json.loads(backtest.read_text())["cases"]}
+    from tailwatch.features.categories import CategoryConfig
+
+    rules = Path("config/signal-categories.json")
+    cluster_rule = (
+        CategoryConfig.model_validate_json(rules.read_bytes()).insider if rules.exists() else None
+    )
     return LiveFeeds(
         engine,
         load_manifest(Path(manifest)),
         LocalObjectStore(Path(os.environ.get("TAILWATCH_LIVE_OBJECTS", ".data/live-objects"))),
         os.environ.get("TAILWATCH_SEC_USER_AGENT") or None,
         known_companies=known,
+        cluster_rule=cluster_rule,
     )
 
 

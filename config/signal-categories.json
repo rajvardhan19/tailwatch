@@ -1,0 +1,15 @@
+{
+ "name": "Three signal categories: flight-triggered, insider cluster buying, both",
+ "registered_at": "2026-11-11T06:24:14Z",
+ "rationale": "Replaces the single insider-silence threshold with explainable categories. The insider cluster rule is the project blueprint's buying-cluster definition (three distinct buyers within 14 days), extended to any reporting-owner type with joint filers counted once; it was fixed before any case was evaluated. The flight rule needs reviewed company-aircraft links and completed visits, which do not exist yet.",
+ "insider": {
+  "min_buyers": 3,
+  "window_days": 14,
+  "lookback_days": 90
+ },
+ "flight": {
+  "description": "A reviewed company aircraft completes a ground stop of at least one hour within 50 km of another tracked company's offices.",
+  "requires": "Human-reviewed company-aircraft links, office locations and completed-visit coverage (C10-C14)"
+ },
+ "both_window_days": 30
+}

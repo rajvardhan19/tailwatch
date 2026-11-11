@@ -1,0 +1,1665 @@
+{
+ "generated_at": "2026-11-11T06:24:31.121153+00:00",
+ "limitations": [
+  "Flight-triggered and both categories cannot be replayed: no historical flight coverage or reviewed company-aircraft links exist yet.",
+  "Insiders who know about a pending deal may not legally buy, so insider clusters measure insider confidence more than takeover risk.",
+  "Same small, hand-selected deal and peer sample as the insider-silence study.",
+  "Purchase codes are as filed; 10b5-1 plan status before April 2023 is unknown."
+ ],
+ "name": "Three signal categories: flight-triggered, insider cluster buying, both",
+ "registered_at": "2026-11-11T06:24:14+00:00",
+ "results": [
+  {
+   "acquirer": "Microsoft",
+   "announced": "2022-01-18",
+   "category": null,
+   "cik": "0000718877",
+   "cutoff": "2022-01-16T00:00:00+00:00",
+   "evidence": "https://www.sec.gov/Archives/edgar/data/718877/000110465922005154/",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 5,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Activision Blizzard",
+   "matched_to": null,
+   "role": "deal"
+  },
+  {
+   "acquirer": "Broadcom",
+   "announced": "2022-05-26",
+   "category": null,
+   "cik": "0001124610",
+   "cutoff": "2022-05-24T00:00:00+00:00",
+   "evidence": "https://www.sec.gov/Archives/edgar/data/1124610/000119312522161168/",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 19,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "VMware",
+   "matched_to": null,
+   "role": "deal"
+  },
+  {
+   "acquirer": "Cisco",
+   "announced": "2023-09-21",
+   "category": null,
+   "cik": "0001353283",
+   "cutoff": "2023-09-19T00:00:00+00:00",
+   "evidence": "https://www.sec.gov/Archives/edgar/data/1353283/000110465923102594/",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 26,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Splunk",
+   "matched_to": null,
+   "role": "deal"
+  },
+  {
+   "acquirer": "ExxonMobil",
+   "announced": "2023-10-11",
+   "category": null,
+   "cik": "0001038357",
+   "cutoff": "2023-10-09T00:00:00+00:00",
+   "evidence": "https://www.sec.gov/Archives/edgar/data/1038357/000119312523253935/",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 2,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Pioneer Natural Resources",
+   "matched_to": null,
+   "role": "deal"
+  },
+  {
+   "acquirer": "Chevron",
+   "announced": "2023-10-23",
+   "category": null,
+   "cik": "0000004447",
+   "cutoff": "2023-10-21T00:00:00+00:00",
+   "evidence": "https://www.sec.gov/Archives/edgar/data/4447/000119312523260801/",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 5,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Hess",
+   "matched_to": null,
+   "role": "deal"
+  },
+  {
+   "acquirer": "Pfizer",
+   "announced": "2023-03-13",
+   "category": null,
+   "cik": "0001060736",
+   "cutoff": "2023-03-11T00:00:00+00:00",
+   "evidence": "https://www.sec.gov/Archives/edgar/data/1060736/000119312523068474/",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 22,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Seagen",
+   "matched_to": null,
+   "role": "deal"
+  },
+  {
+   "acquirer": "Amgen",
+   "announced": "2022-12-12",
+   "category": null,
+   "cik": "0001492426",
+   "cutoff": "2022-12-10T00:00:00+00:00",
+   "evidence": "https://www.sec.gov/Archives/edgar/data/1492426/000119312522302262/",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 1,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Horizon Therapeutics",
+   "matched_to": null,
+   "role": "deal"
+  },
+  {
+   "acquirer": "Hewlett Packard Enterprise",
+   "announced": "2024-01-09",
+   "category": null,
+   "cik": "0001043604",
+   "cutoff": "2024-01-07T00:00:00+00:00",
+   "evidence": "https://www.sec.gov/Archives/edgar/data/1043604/000119312524005659/",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 10,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Juniper Networks",
+   "matched_to": null,
+   "role": "deal"
+  },
+  {
+   "acquirer": "Capital One",
+   "announced": "2024-02-19",
+   "category": null,
+   "cik": "0001393612",
+   "cutoff": "2024-02-17T00:00:00+00:00",
+   "evidence": "https://www.sec.gov/Archives/edgar/data/1393612/000119312524042824/",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 11,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Discover Financial",
+   "matched_to": null,
+   "role": "deal"
+  },
+  {
+   "acquirer": "Microsoft",
+   "announced": "2021-04-12",
+   "category": null,
+   "cik": "0001002517",
+   "cutoff": "2021-04-10T00:00:00+00:00",
+   "evidence": "https://www.sec.gov/Archives/edgar/data/1002517/000119312521113796/",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 10,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Nuance",
+   "matched_to": null,
+   "role": "deal"
+  },
+  {
+   "acquirer": "AMD",
+   "announced": "2020-10-27",
+   "category": null,
+   "cik": "0000743988",
+   "cutoff": "2020-10-25T00:00:00+00:00",
+   "evidence": "https://www.sec.gov/Archives/edgar/data/743988/000110465920118358/",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 29,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Xilinx",
+   "matched_to": null,
+   "role": "deal"
+  },
+  {
+   "acquirer": "Analog Devices",
+   "announced": "2020-07-13",
+   "category": null,
+   "cik": "0000743316",
+   "cutoff": "2020-07-11T00:00:00+00:00",
+   "evidence": "https://www.sec.gov/Archives/edgar/data/743316/000119312520191603/",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 17,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Maxim Integrated",
+   "matched_to": null,
+   "role": "deal"
+  },
+  {
+   "acquirer": "Canadian Pacific",
+   "announced": "2021-03-21",
+   "category": null,
+   "cik": "0000054480",
+   "cutoff": "2021-03-19T00:00:00+00:00",
+   "evidence": "https://www.sec.gov/Archives/edgar/data/54480/000119312521088557/",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 36,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Kansas City Southern",
+   "matched_to": null,
+   "role": "deal"
+  },
+  {
+   "acquirer": "Chevron",
+   "announced": "2019-04-12",
+   "category": null,
+   "cik": "0000773910",
+   "cutoff": "2019-04-10T00:00:00+00:00",
+   "evidence": "https://www.sec.gov/Archives/edgar/data/773910/000119312519109198/",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 12,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Anadarko Petroleum",
+   "matched_to": null,
+   "role": "deal"
+  },
+  {
+   "acquirer": "Synopsys",
+   "announced": "2024-01-16",
+   "category": null,
+   "cik": "0001013462",
+   "cutoff": "2024-01-14T00:00:00+00:00",
+   "evidence": "https://www.sec.gov/Archives/edgar/data/1013462/000119312524008112/",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 5,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Ansys",
+   "matched_to": null,
+   "role": "deal"
+  },
+  {
+   "acquirer": "Novo Holdings",
+   "announced": "2024-02-05",
+   "category": null,
+   "cik": "0001596783",
+   "cutoff": "2024-02-03T00:00:00+00:00",
+   "evidence": "https://www.sec.gov/Archives/edgar/data/1596783/000119312524023426/",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 34,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Catalent",
+   "matched_to": null,
+   "role": "deal"
+  },
+  {
+   "acquirer": "Nippon Steel",
+   "announced": "2023-12-18",
+   "category": null,
+   "cik": "0001163302",
+   "cutoff": "2023-12-16T00:00:00+00:00",
+   "evidence": "https://www.sec.gov/Archives/edgar/data/1163302/000110465923126953/",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 5,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "U.S. Steel",
+   "matched_to": null,
+   "role": "deal"
+  },
+  {
+   "acquirer": "ConocoPhillips",
+   "announced": "2024-05-29",
+   "category": null,
+   "cik": "0000101778",
+   "cutoff": "2024-05-27T00:00:00+00:00",
+   "evidence": "https://www.sec.gov/Archives/edgar/data/101778/000119312524148638/",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 23,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Marathon Oil",
+   "matched_to": null,
+   "role": "deal"
+  },
+  {
+   "acquirer": "Frontier Group",
+   "announced": "2022-02-07",
+   "category": null,
+   "cik": "0001498710",
+   "cutoff": "2022-02-05T00:00:00+00:00",
+   "evidence": "https://www.sec.gov/Archives/edgar/data/1498710/000119312522029011/",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 43,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Spirit Airlines",
+   "matched_to": null,
+   "role": "deal"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2022-01-18",
+   "category": null,
+   "cik": "0000712515",
+   "cutoff": "2022-01-16T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 41,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Electronic Arts",
+   "matched_to": "0000718877",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2022-01-18",
+   "category": null,
+   "cik": "0000946581",
+   "cutoff": "2022-01-16T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 8,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Take-Two Interactive",
+   "matched_to": "0000718877",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2022-05-26",
+   "category": null,
+   "cik": "0001373715",
+   "cutoff": "2022-05-24T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 79,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "ServiceNow",
+   "matched_to": "0001124610",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2022-05-26",
+   "category": null,
+   "cik": "0000769397",
+   "cutoff": "2022-05-24T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 16,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Autodesk",
+   "matched_to": "0001124610",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2023-09-21",
+   "category": null,
+   "cik": "0001561550",
+   "cutoff": "2023-09-19T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 52,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Datadog",
+   "matched_to": "0001353283",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2023-09-21",
+   "category": null,
+   "cik": "0001327567",
+   "cutoff": "2023-09-19T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 31,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Palo Alto Networks",
+   "matched_to": "0001353283",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2023-10-11",
+   "category": null,
+   "cik": "0001090012",
+   "cutoff": "2023-10-09T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 2,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Devon Energy",
+   "matched_to": "0001038357",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "cik": "0001539838",
+   "excluded": "became a merger target within the horizon",
+   "label": "Diamondback Energy",
+   "matched_to": "0001038357",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2023-10-23",
+   "category": null,
+   "cik": "0001163165",
+   "cutoff": "2023-10-21T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 12,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "ConocoPhillips",
+   "matched_to": "0000004447",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2023-10-23",
+   "category": null,
+   "cik": "0000821189",
+   "cutoff": "2023-10-21T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 31,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "EOG Resources",
+   "matched_to": "0000004447",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2023-03-13",
+   "category": null,
+   "cik": "0001048477",
+   "cutoff": "2023-03-11T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 15,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "BioMarin",
+   "matched_to": "0001060736",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2023-03-13",
+   "category": null,
+   "cik": "0000879169",
+   "cutoff": "2023-03-11T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 31,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Incyte",
+   "matched_to": "0001060736",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2022-12-12",
+   "category": null,
+   "cik": "0001232524",
+   "cutoff": "2022-12-10T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 16,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Jazz Pharmaceuticals",
+   "matched_to": "0001492426",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2022-12-12",
+   "category": null,
+   "cik": "0001082554",
+   "cutoff": "2022-12-10T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 38,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "United Therapeutics",
+   "matched_to": "0001492426",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2024-01-09",
+   "category": null,
+   "cik": "0001596532",
+   "cutoff": "2024-01-07T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 48,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Arista Networks",
+   "matched_to": "0001043604",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2024-01-09",
+   "category": null,
+   "cik": "0001048695",
+   "cutoff": "2024-01-07T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 26,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "F5",
+   "matched_to": "0001043604",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2024-02-19",
+   "category": null,
+   "cik": "0001601712",
+   "cutoff": "2024-02-17T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 40,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Synchrony",
+   "matched_to": "0001393612",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2024-02-19",
+   "category": null,
+   "cik": "0000004962",
+   "cutoff": "2024-02-17T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 33,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "American Express",
+   "matched_to": "0001393612",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2021-04-12",
+   "category": null,
+   "cik": "0000813672",
+   "cutoff": "2021-04-10T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 52,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Cadence",
+   "matched_to": "0001002517",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2021-04-12",
+   "category": null,
+   "cik": "0000857005",
+   "cutoff": "2021-04-10T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 23,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "PTC",
+   "matched_to": "0001002517",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2020-10-27",
+   "category": null,
+   "cik": "0000855658",
+   "cutoff": "2020-10-25T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 25,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Lattice Semiconductor",
+   "matched_to": "0000743988",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2020-10-27",
+   "category": null,
+   "cik": "0000827054",
+   "cutoff": "2020-10-25T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 44,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Microchip",
+   "matched_to": "0000743988",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2020-07-13",
+   "category": null,
+   "cik": "0000827054",
+   "cutoff": "2020-07-11T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 35,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Microchip",
+   "matched_to": "0000743316",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2020-07-13",
+   "category": null,
+   "cik": "0001097864",
+   "cutoff": "2020-07-11T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 12,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "onsemi",
+   "matched_to": "0000743316",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2021-03-21",
+   "category": null,
+   "cik": "0000100885",
+   "cutoff": "2021-03-19T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 32,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Union Pacific",
+   "matched_to": "0000054480",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2021-03-21",
+   "category": null,
+   "cik": "0000277948",
+   "cutoff": "2021-03-19T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 33,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "CSX",
+   "matched_to": "0000054480",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2019-04-12",
+   "category": null,
+   "cik": "0001090012",
+   "cutoff": "2019-04-10T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [
+     "0001127602-19-008889"
+    ],
+    "buyer_names": [
+     "Henry Robert H."
+    ],
+    "buyers": 1,
+    "form4_filings": 12,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": "11651",
+    "status": "observed",
+    "triggered": false,
+    "window_end": "2019-02-27",
+    "window_start": "2019-02-27"
+   },
+   "label": "Devon Energy",
+   "matched_to": "0000773910",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2019-04-12",
+   "category": null,
+   "cik": "0000006769",
+   "cutoff": "2019-04-10T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 72,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Apache",
+   "matched_to": "0000773910",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2024-01-16",
+   "category": null,
+   "cik": "0000813672",
+   "cutoff": "2024-01-14T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 24,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Cadence",
+   "matched_to": "0001013462",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2024-01-16",
+   "category": null,
+   "cik": "0000857005",
+   "cutoff": "2024-01-14T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 29,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "PTC",
+   "matched_to": "0001013462",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2024-02-05",
+   "category": null,
+   "cik": "0001100682",
+   "cutoff": "2024-02-03T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [
+     "0001127602-23-027415",
+     "0001127602-23-028148"
+    ],
+    "buyer_names": [
+     "FOSTER JAMES C",
+     "Girshick Birgit"
+    ],
+    "buyers": 2,
+    "form4_filings": 15,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": "6942",
+    "status": "observed",
+    "triggered": false,
+    "window_end": "2023-11-20",
+    "window_start": "2023-11-14"
+   },
+   "label": "Charles River",
+   "matched_to": "0001596783",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2024-02-05",
+   "category": null,
+   "cik": "0000105770",
+   "cutoff": "2024-02-03T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 5,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "West Pharmaceutical",
+   "matched_to": "0001596783",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2023-12-18",
+   "category": null,
+   "cik": "0000073309",
+   "cutoff": "2023-12-16T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 0,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Nucor",
+   "matched_to": "0001163302",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2023-12-18",
+   "category": null,
+   "cik": "0001022671",
+   "cutoff": "2023-12-16T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 24,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Steel Dynamics",
+   "matched_to": "0001163302",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2024-05-29",
+   "category": null,
+   "cik": "0001841666",
+   "cutoff": "2024-05-27T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 39,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "APA",
+   "matched_to": "0000101778",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2024-05-29",
+   "category": null,
+   "cik": "0001792580",
+   "cutoff": "2024-05-27T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [
+     "0001667731-24-000228"
+    ],
+    "buyer_names": [
+     "Chhina Sippy"
+    ],
+    "buyers": 1,
+    "form4_filings": 50,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": "1600",
+    "status": "observed",
+    "triggered": false,
+    "window_end": "2024-05-14",
+    "window_start": "2024-05-14"
+   },
+   "label": "Ovintiv",
+   "matched_to": "0000101778",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2022-02-07",
+   "category": null,
+   "cik": "0000766421",
+   "cutoff": "2022-02-05T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 16,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Alaska Air",
+   "matched_to": "0001498710",
+   "role": "control"
+  },
+  {
+   "acquirer": null,
+   "as_of_deal_date": "2022-02-07",
+   "category": null,
+   "cik": "0001362468",
+   "cutoff": "2022-02-05T00:00:00+00:00",
+   "flight": {
+    "reason": "unavailable: no historical flight coverage or reviewed aircraft links",
+    "status": "unavailable"
+   },
+   "insider": {
+    "accessions": [],
+    "buyer_names": [],
+    "buyers": 0,
+    "form4_filings": 14,
+    "lead_days": null,
+    "missing": 0,
+    "public_on": null,
+    "shares": null,
+    "status": "observed",
+    "triggered": false,
+    "window_end": null,
+    "window_start": null
+   },
+   "label": "Allegiant",
+   "matched_to": "0001498710",
+   "role": "control"
+  }
+ ],
+ "rules": {
+  "both_window_days": 30,
+  "flight": {
+   "description": "A reviewed company aircraft completes a ground stop of at least one hour within 50 km of another tracked company's offices.",
+   "requires": "Human-reviewed company-aircraft links, office locations and completed-visit coverage (C10-C14)"
+  },
+  "insider": {
+   "lookback_days": 90,
+   "min_buyers": 3,
+   "window_days": 14
+  },
+  "name": "Three signal categories: flight-triggered, insider cluster buying, both",
+  "rationale": "Replaces the single insider-silence threshold with explainable categories. The insider cluster rule is the project blueprint's buying-cluster definition (three distinct buyers within 14 days), extended to any reporting-owner type with joint filers counted once; it was fixed before any case was evaluated. The flight rule needs reviewed company-aircraft links and completed visits, which do not exist yet.",
+  "registered_at": "2026-11-11T06:24:14Z"
+ },
+ "source_report": "beb58a0d06e2b07bc13ffdb96092e27f32447949ece257e6dcc6b9c53f924783",
+ "summary": {
+  "control": {
+   "configured": 38,
+   "excluded": 1,
+   "incomplete": 0,
+   "insider_triggered": 0,
+   "observed": 37,
+   "rate": 0.0,
+   "rate_interval": [
+    0.0,
+    0.09405782583720251
+   ]
+  },
+  "deal": {
+   "configured": 19,
+   "excluded": 0,
+   "incomplete": 0,
+   "insider_triggered": 0,
+   "median_lead_days": null,
+   "observed": 19,
+   "rate": 0.0,
+   "rate_interval": [
+    0.0,
+    0.16817922405261626
+   ]
+  }
+ }
+}

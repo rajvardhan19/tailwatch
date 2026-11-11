@@ -100,6 +100,14 @@ def add_commands(commands: argparse._SubParsersAction) -> None:  # type: ignore[
     backtest.add_argument("--source", required=True)
     backtest.add_argument("--objects", type=Path, required=True)
     backtest.add_argument("--output", type=Path, required=True)
+    categories = commands.add_parser(
+        "backtest-categories",
+        help="replay the three signal categories over past deals from the SEC journal (no network)",
+    )
+    categories.add_argument("config", type=Path)
+    categories.add_argument("--report", type=Path, required=True, help="insider-silence report")
+    categories.add_argument("--objects", type=Path, required=True)
+    categories.add_argument("--output", type=Path, required=True)
 
 
 def load_run(path: Path) -> FeatureRun:
@@ -376,6 +384,19 @@ def _backtest(engine: Engine, args: argparse.Namespace) -> dict[str, object]:
     return {"report_hash": digest, "output": str(args.output), "summary": report["summary"]}
 
 
+def _backtest_categories(engine: Engine, args: argparse.Namespace) -> dict[str, object]:
+    from tailwatch.features.categories import CategoryConfig
+    from tailwatch.research.categories_backtest import run_category_backtest
+    from tailwatch.sources.objects import LocalObjectStore
+
+    config = CategoryConfig.model_validate_json(args.config.read_bytes())
+    report = run_category_backtest(
+        engine, LocalObjectStore(args.objects), json.loads(args.report.read_bytes()), config
+    )
+    args.output.write_bytes(json.dumps(report, sort_keys=True, indent=1, allow_nan=False).encode())
+    return {"output": str(args.output), "summary": report["summary"]}
+
+
 HANDLERS: dict[str, Callable[[Engine, argparse.Namespace], dict[str, object]]] = {
     "draft-alerts": _draft,
     "issue-key": _issue_key,
@@ -387,4 +408,5 @@ HANDLERS: dict[str, Callable[[Engine, argparse.Namespace], dict[str, object]]] =
     "outbox-reconcile": _reconcile,
     "outbox-resolve": _resolve,
     "backtest": _backtest,
+    "backtest-categories": _backtest_categories,
 }
