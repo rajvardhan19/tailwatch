@@ -13,7 +13,7 @@ Run the server first, bound to `127.0.0.1` with `TAILWATCH_PUBLIC_VIEW=1`. The t
 
 ## Permanent free hosting (Render + Neon)
 
-1. **Database.** Create a free project at https://neon.com, then copy its connection string as given. `scripts/start.sh` switches `postgresql://` to the psycopg driver, and `?sslmode=require` is kept. PostGIS is available on Neon; migration `0009` enables it.
+1. **Database.** Create a free project at https://neon.com, then copy its connection string. Use the **direct** host: turn off connection pooling in Neon's connect dialog, or delete `-pooler` from the host name. The SEC worker holds a session-level advisory lock, which a transaction-pooled connection cannot keep. `scripts/start.sh` switches `postgresql://` to the psycopg driver, and `?sslmode=require` is kept. PostGIS is available on Neon; migration `0009` enables it.
 2. **Code.** Render deploys from GitHub. `render.yaml` points the service at `feat/live-research-feeds`; change its `branch` after merging into `main`.
 3. **Web service.** At https://render.com, choose New → Blueprint and select this repository; `render.yaml` defines a free Docker web service. Fill in the secret variables when prompted:
    - `TAILWATCH_DATABASE_URL`: the Neon URL from step 1.

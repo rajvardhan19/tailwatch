@@ -20,7 +20,7 @@ services:
       - key: TAILWATCH_LIVE_OBJECTS
         value: /tmp/tailwatch-objects
       # Secrets: set these in the Render dashboard, never in this file.
-      - key: TAILWATCH_DATABASE_URL  # Neon connection string, pasted as given
+      - key: TAILWATCH_DATABASE_URL  # Neon connection string, direct host (no -pooler)
         sync: false
       - key: TAILWATCH_SEC_USER_AGENT  # "Your Name your@email" (SEC fair-access policy)
         sync: false
