@@ -14,6 +14,12 @@ from tailwatch.sources.objects import ObjectStore
 from tailwatch.sources.policy import Budget, Mode, RequestBudget, Source, authorize
 
 MAX_BYTES = 25 * 1024 * 1024
+# EDGAR's latest-filings Atom feed for Form 4. The only permitted URL with a query
+# string: it is a fixed constant, never assembled from caller input.
+CURRENT_FORM4_URL = (
+    "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&company=&dateb="
+    "&owner=include&start=0&count=40&output=atom"
+)
 
 
 @dataclass(frozen=True)
@@ -28,6 +34,8 @@ class Transport(Protocol):
 
 
 def validate_url(url: str) -> None:
+    if url == CURRENT_FORM4_URL:
+        return
     parsed = urlsplit(url)
     if (
         parsed.scheme != "https"

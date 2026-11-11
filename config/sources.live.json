@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "sector": null,
+  "required_sources": ["adsblol-live", "sec-live"],
+  "sources": [
+    {
+      "source_id": "adsblol-live",
+      "enabled": true,
+      "kind": "live",
+      "capabilities": ["aircraft_positions"],
+      "latency_seconds": 60,
+      "permission": {
+        "reference": "https://api.adsb.lol/api/openapi.json (read 2026-11-10): free API, data under ODbL 1.0; the maintainer asks to be contacted before production use. Approved for local research display only: anonymous en-route positions, military/PIA/LADD excluded, no redistribution.",
+        "reviewed_by": "Repository maintainer (local research review, 2026-11-10)",
+        "valid_from": "2026-11-11T00:00:00Z",
+        "valid_until": "2027-02-11T00:00:00Z",
+        "modes": ["research"],
+        "retention": true,
+        "derived_output": true,
+        "external_evidence": false,
+        "b2b_distribution": false
+      },
+      "coverage": [],
+      "max_requests": 6000,
+      "max_cost_microusd": 0
+    },
+    {
+      "source_id": "sec-live",
+      "enabled": true,
+      "kind": "live",
+      "capabilities": ["sec"],
+      "latency_seconds": 60,
+      "permission": {
+        "reference": "https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data: public EDGAR data; fair access at most 10 requests/second with a declared User-Agent. Approved for local research display of the latest Form 4 filings; responses are journaled.",
+        "reviewed_by": "Repository maintainer (local research review, 2026-11-10)",
+        "valid_from": "2026-11-11T00:00:00Z",
+        "valid_until": "2027-02-11T00:00:00Z",
+        "modes": ["research"],
+        "retention": true,
+        "derived_output": true,
+        "external_evidence": false,
+        "b2b_distribution": false
+      },
+      "coverage": [],
+      "max_requests": 3000,
+      "max_cost_microusd": 0
+    }
+  ]
+}

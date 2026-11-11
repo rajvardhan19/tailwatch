@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+<entry><title>4 - Doe Jane (0000000002) (Reporting)</title>
+<link rel="alternate" type="text/html" href="https://www.sec.gov/Archives/edgar/data/2/000000000126000001/0000000001-26-000001-index.htm"/>
+<updated>2026-11-10T16:01:00-05:00</updated><id>urn:tag:sec.gov,2008:accession-number=0000000001-26-000001</id></entry>
+<entry><title>4 - Example Corp (0000000001) (Issuer)</title>
+<link rel="alternate" type="text/html" href="https://www.sec.gov/Archives/edgar/data/1/000000000126000001/0000000001-26-000001-index.htm"/>
+<updated>2026-11-10T16:01:00-05:00</updated><id>urn:tag:sec.gov,2008:accession-number=0000000001-26-000001</id></entry>
+<entry><title>4/A - Later Inc (0000000003) (Issuer)</title>
+<link rel="alternate" type="text/html" href="https://www.sec.gov/Archives/edgar/data/3/000000000126000002/0000000001-26-000002-index.htm"/>
+<updated>2026-11-10T16:05:00-05:00</updated><id>urn:tag:sec.gov,2008:accession-number=0000000001-26-000002</id></entry>
+<entry><title>4 - Elsewhere (0000000004) (Issuer)</title>
+<link rel="alternate" type="text/html" href="https://evil.example/Archives/edgar/data/4/000000000126000003/x-index.htm"/>
+<updated>2026-11-10T16:06:00-05:00</updated><id>urn:tag:sec.gov,2008:accession-number=0000000001-26-000003</id></entry>
+</feed>

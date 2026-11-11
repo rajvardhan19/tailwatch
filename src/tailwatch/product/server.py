@@ -3,27 +3,51 @@
 import os
 from collections.abc import Awaitable, Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import create_engine
+from sqlalchemy import Engine, create_engine
 
 from tailwatch.product.api import create_app
 from tailwatch.product.messages import signer_from_env
 
+if TYPE_CHECKING:
+    from tailwatch.product.live import LiveFeeds
+
 ASSETS = Path(__file__).resolve().parents[1] / "static"
 url = os.environ.get("TAILWATCH_DATABASE_URL")
-app = (
-    create_app(
-        create_engine(url, pool_pre_ping=True),
+
+
+def _live_feeds(engine: Engine) -> "LiveFeeds | None":
+    """Research feeds run only with an explicit, rights-reviewed source manifest."""
+    manifest = os.environ.get("TAILWATCH_LIVE_MANIFEST")
+    if not manifest:
+        return None
+    from tailwatch.product.live import LiveFeeds
+    from tailwatch.sources.objects import LocalObjectStore
+    from tailwatch.sources.policy import load_manifest
+
+    return LiveFeeds(
+        engine,
+        load_manifest(Path(manifest)),
+        LocalObjectStore(Path(os.environ.get("TAILWATCH_LIVE_OBJECTS", ".data/live-objects"))),
+        os.environ.get("TAILWATCH_SEC_USER_AGENT") or None,
+    )
+
+
+if url:
+    engine = create_engine(url, pool_pre_ping=True)
+    app = create_app(
+        engine,
         production_enabled=os.environ.get("TAILWATCH_ENABLE_PRODUCTION") == "1",
         signer=signer_from_env(),
         reference_source=os.environ.get("TAILWATCH_REFERENCE_SOURCE") or None,
+        live=_live_feeds(engine),
     )
-    if url
-    else FastAPI(title="Tailwatch synthetic preview")
-)
+else:
+    app = FastAPI(title="Tailwatch synthetic preview")
 app.mount("/assets", StaticFiles(directory=ASSETS), name="assets")
 
 

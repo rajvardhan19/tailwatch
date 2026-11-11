@@ -3,7 +3,7 @@
 import hashlib
 import secrets
 from datetime import datetime
-from typing import Annotated, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
@@ -14,6 +14,9 @@ from tailwatch.operations.release import allowed_model
 from tailwatch.product.alerts import append_event, events, verify_history
 from tailwatch.product.messages import LinkSigner
 from tailwatch.sources.policy import Contract, NonEmpty
+
+if TYPE_CHECKING:
+    from tailwatch.product.live import LiveFeeds
 
 
 class Principal(Contract):
@@ -89,6 +92,7 @@ def create_app(
     production_enabled: bool = False,
     signer: LinkSigner | None = None,
     reference_source: str | None = None,
+    live: "LiveFeeds | None" = None,
 ) -> FastAPI:
     app = FastAPI(title="Tailwatch", version="0.1.0")
 
@@ -231,6 +235,23 @@ def create_app(
             if found is None:
                 raise HTTPException(404, "Subscription not found")
         return {"active": False}
+
+    @app.get("/live/status")
+    def live_status() -> dict[str, Any]:
+        # Public: says only whether research feeds are configured, never their data.
+        return {"enabled": live is not None, **(live.enabled() if live else {})}
+
+    @app.get("/live/traffic")
+    def live_traffic(principal: Annotated[Principal, Depends(authenticate)]) -> dict[str, Any]:
+        if live is None or not live.enabled()["traffic"]:
+            raise HTTPException(404, "Live air traffic is not configured")
+        return live.traffic()
+
+    @app.get("/live/filings")
+    def live_filings(principal: Annotated[Principal, Depends(authenticate)]) -> dict[str, Any]:
+        if live is None or not live.enabled()["filings"]:
+            raise HTTPException(404, "Live SEC filings are not configured")
+        return live.filings()
 
     @app.get("/health")
     def health() -> dict[str, object]:
