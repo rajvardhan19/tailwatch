@@ -2,7 +2,7 @@
 
 Research project for evidence-linked acquisition signals from corporate aircraft activity, insider disclosures, and company text.
 
-**Status: research pipeline, guarded API, dashboard and release controls implemented with synthetic validation.** Real-data evaluation and production gates remain pending. No validated prediction accuracy or live customer alerts are claimed.
+**Status: software workflow complete end to end on synthetic data** — research pipeline, candidate scoring and review-only drafts, human review, verified delivery with reconciliation, guarded API, dashboard, monitoring and release controls. Real-data evaluation and production gates (G0–G5) remain pending. No validated prediction accuracy or live customer alerts are claimed.
 
 - [Revised technical blueprint](docs/technical-blueprint.md): implementation contract; supersedes the original design.
 - [Commit-by-commit implementation plan](docs/implementation-plan.md): ordered changes, dependencies, acceptance checks, and release gates.
@@ -13,6 +13,8 @@ Research project for evidence-linked acquisition signals from corporate aircraft
 - [Aircraft registry runbook](docs/runbooks/aircraft-registry.md): archived observations, quarantines, historical alias lookup and candidate exclusions.
 - [Aircraft control runbook](docs/runbooks/aircraft-control.md): candidate evidence, dated role-specific decisions, rejection and replay.
 - [Airport proximity runbook](docs/runbooks/airport-proximity.md): typed codes, dated coordinates, WGS84 distances and company deduplication.
+- [Synthetic operator walkthrough](docs/runbooks/synthetic-walkthrough.md): frozen features → drafts → human approval → verified delivery → audit, step by step.
+- [API and delivery runbook](docs/runbooks/api-delivery.md) and [alert review runbook](docs/runbooks/alert-review.md): endpoints, recipient verification, outbox reconciliation and outcomes.
 - [Detailed audit](docs/deep-design-audit.md): findings, primary sources, and regression scenarios.
 - [Original supplied blueprint](docs/original-blueprint.txt): preserved reference, not the current implementation contract.
 
@@ -37,7 +39,14 @@ Dependency installation needs package-index access once; these commands then run
 
 Open http://127.0.0.1:8765 for the synthetic dashboard. See the [operations and release runbook](docs/runbooks/operations-release.md) for database/API setup and the [free-first stack](docs/runbooks/free-first-stack.md) for provider decisions. The default preview needs no credentials and sends no notifications.
 
-Additional operator commands: `tailwatch run-fixture-job --help` runs checkpointed synthetic stages; `tailwatch provision-workspace --help` creates a tenant and unverified destination in a configured local database. Both require migrations through `0009`. They do not activate production.
+Additional operator commands require migrations through `0010` and never activate production:
+
+- `run-fixture-job` runs checkpointed synthetic stages; `fit-candidate` and `draft-alerts` retain a candidate and append review-only drafts.
+- `provision-workspace`, `issue-key`, `revoke-key`, `request-verification` and `send-verifications` manage tenants, keys and recipient-only verification links.
+- `outbox-enqueue`, `outbox-deliver`, `outbox-reconcile` and `outbox-resolve` run the audited delivery outbox (local runs write to a file mailbox).
+- `ops-status`, `checkpoint-alerts` and `verify-checkpoints` monitor operations and retain independent alert-chain heads.
+
+Follow the [synthetic operator walkthrough](docs/runbooks/synthetic-walkthrough.md) to exercise all of them together.
 
 Run the bundled synthetic development report without credentials:
 

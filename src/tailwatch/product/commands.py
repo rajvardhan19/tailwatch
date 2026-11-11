@@ -43,6 +43,13 @@ def add_commands(commands: argparse._SubParsersAction) -> None:  # type: ignore[
         help="evidence ID whose external display rights were reviewed (repeatable)",
     )
 
+    key = commands.add_parser("issue-key", help="issue an API key into an owner-only file")
+    key.add_argument("--tenant", type=UUID, required=True)
+    key.add_argument("--scope", choices=("customer", "analyst"), required=True)
+    key.add_argument("--output", type=Path, required=True)
+    revoke = commands.add_parser("revoke-key", help="revoke an API key by its SHA-256 digest")
+    revoke.add_argument("key_hash")
+
     request = commands.add_parser(
         "request-verification", help="queue a new recipient verification message"
     )
@@ -195,6 +202,19 @@ def _drain(step: Callable[[], str], limit: int) -> dict[str, int]:
     return dict(counts)
 
 
+def _issue_key(engine: Engine, args: argparse.Namespace) -> dict[str, object]:
+    from tailwatch.product.onboarding import issue_key_file
+
+    return dict(issue_key_file(engine, tenant=args.tenant, scope=args.scope, output=args.output))
+
+
+def _revoke_key(engine: Engine, args: argparse.Namespace) -> dict[str, object]:
+    from tailwatch.product.onboarding import revoke_key
+
+    revoke_key(engine, args.key_hash)
+    return {"key_hash": args.key_hash, "revoked": True}
+
+
 def _request(engine: Engine, args: argparse.Namespace) -> dict[str, object]:
     from tailwatch.product.delivery import request_verification
 
@@ -275,6 +295,8 @@ def _resolve(engine: Engine, args: argparse.Namespace) -> dict[str, object]:
 
 HANDLERS: dict[str, Callable[[Engine, argparse.Namespace], dict[str, object]]] = {
     "draft-alerts": _draft,
+    "issue-key": _issue_key,
+    "revoke-key": _revoke_key,
     "request-verification": _request,
     "send-verifications": _send_verifications,
     "outbox-enqueue": _enqueue,

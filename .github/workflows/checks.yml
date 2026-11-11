@@ -96,3 +96,5 @@ jobs:
           done
           grep -qi synthetic /tmp/dashboard.html
           curl --fail http://127.0.0.1:8765/assets/app.js > /dev/null
+          curl --fail http://127.0.0.1:8765/confirm | grep -q confirm.js
+          curl --fail http://127.0.0.1:8765/assets/confirm.js > /dev/null

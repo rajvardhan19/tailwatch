@@ -32,7 +32,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     job.add_argument("--session", type=date.fromisoformat, required=True)
     job.add_argument("--resume", action="store_true")
     onboarding = commands.add_parser(
-        "provision-workspace", help="create local tenant and unverified destination"
+        "provision-workspace", help="create tenant, customer key and queued recipient verification"
     )
     onboarding.add_argument("--name", required=True)
     onboarding.add_argument("--email", required=True)
