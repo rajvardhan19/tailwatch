@@ -1,9 +1,18 @@
-"""Operator workflow commands: score/draft alerts. None of them approves or activates."""
+"""Operator workflow commands. None of them approves alerts or activates a release.
+
+Local sending writes rendered messages to a development mailbox directory. External
+sending additionally needs TAILWATCH_ENABLE_PRODUCTION=1, provider credentials and an
+active validated release; the delivery code rechecks those gates for every message.
+"""
 
 import argparse
 import json
 import os
+from collections import Counter
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import Engine, create_engine
@@ -11,7 +20,9 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from tailwatch.features.runs import FeatureRun
 
-COMMANDS = {"draft-alerts"}
+if TYPE_CHECKING:
+    from tailwatch.product.delivery import Sender
+    from tailwatch.product.messages import LinkSigner
 
 
 def add_commands(commands: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
@@ -32,6 +43,43 @@ def add_commands(commands: argparse._SubParsersAction) -> None:  # type: ignore[
         help="evidence ID whose external display rights were reviewed (repeatable)",
     )
 
+    request = commands.add_parser(
+        "request-verification", help="queue a new recipient verification message"
+    )
+    request.add_argument("subscription", type=UUID)
+    request.add_argument("--actor", required=True)
+
+    def sending(parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("--limit", type=int, default=50)
+        parser.add_argument("--mail-dir", type=Path, help="local development mailbox")
+        parser.add_argument(
+            "--external", action="store_true", help="send through the configured provider"
+        )
+
+    sending(commands.add_parser("send-verifications", help="send queued verification links"))
+    enqueue = commands.add_parser(
+        "outbox-enqueue", help="queue current approvals for verified subscriptions"
+    )
+    enqueue.add_argument("--tenant", type=UUID, required=True)
+    enqueue.add_argument("--actor", required=True)
+    sending(commands.add_parser("outbox-deliver", help="send pending approved alerts"))
+    reconcile = commands.add_parser(
+        "outbox-reconcile", help="mark abandoned sends uncertain; optionally retry idempotently"
+    )
+    reconcile.add_argument("--stale-minutes", type=int, default=30)
+    reconcile.add_argument(
+        "--retry", action="store_true", help="retry uncertain alerts with provider idempotency"
+    )
+    sending(reconcile)
+    resolve = commands.add_parser(
+        "outbox-resolve", help="record an audited decision for an uncertain delivery"
+    )
+    resolve.add_argument("delivery", type=UUID)
+    resolve.add_argument("--state", choices=("sent", "cancelled"), required=True)
+    resolve.add_argument("--actor", required=True)
+    resolve.add_argument("--evidence", required=True, help="where the outcome was confirmed")
+    resolve.add_argument("--provider-id")
+
 
 def load_run(path: Path) -> FeatureRun:
     """Accept a canonical FeatureRun or the research-demo export with its committed hash."""
@@ -44,20 +92,16 @@ def load_run(path: Path) -> FeatureRun:
     return FeatureRun.model_validate(data)
 
 
-def _engine(parser: argparse.ArgumentParser) -> Engine:
+def execute(args: argparse.Namespace, parser: argparse.ArgumentParser) -> bool:
+    handler = HANDLERS.get(args.command)
+    if handler is None:
+        return False
     url = os.environ.get("TAILWATCH_DATABASE_URL")
     if not url:
         parser.exit(2, "TAILWATCH_DATABASE_URL is required; apply migrations first\n")
-    return create_engine(url)
-
-
-def execute(args: argparse.Namespace, parser: argparse.ArgumentParser) -> bool:
-    if args.command not in COMMANDS:
-        return False
-    engine = _engine(parser)
+    engine = create_engine(url)
     try:
-        output = _draft(engine, args)
-        print(json.dumps(output, sort_keys=True))
+        print(json.dumps(handler(engine, args), sort_keys=True))
     except (OSError, ValueError, SQLAlchemyError) as error:
         parser.exit(2, f"{args.command} rejected: {type(error).__name__}\n")
     finally:
@@ -111,3 +155,130 @@ def _draft(engine: Engine, args: argparse.Namespace) -> dict[str, object]:
         "approval": "human_required",
         "delivery_enabled": False,
     }
+
+
+def _sender(args: argparse.Namespace) -> "Sender":
+    from tailwatch.product.delivery import FileSender, ResendSender
+
+    if args.external:
+        if os.environ.get("TAILWATCH_ENABLE_PRODUCTION") != "1":
+            raise ValueError("external sending requires TAILWATCH_ENABLE_PRODUCTION=1")
+        return ResendSender(
+            os.environ.get("TAILWATCH_RESEND_API_KEY", ""),
+            os.environ.get("TAILWATCH_EMAIL_FROM", ""),
+        )
+    if args.mail_dir is None:
+        raise ValueError("--mail-dir is required unless --external is used")
+    return FileSender(args.mail_dir)
+
+
+def _signer() -> "LinkSigner":
+    from tailwatch.product.messages import signer_from_env
+
+    signer = signer_from_env()
+    if signer is None:
+        raise ValueError("TAILWATCH_LINK_SECRET and TAILWATCH_PUBLIC_URL are required")
+    return signer
+
+
+def _drain(step: Callable[[], str], limit: int) -> dict[str, int]:
+    if limit < 1:
+        raise ValueError("positive limit required")
+    counts: Counter[str] = Counter()
+    for _ in range(limit):
+        outcome = step()
+        if outcome == "idle":
+            break
+        counts[outcome] += 1
+        if outcome == "deferred":
+            break  # Quota or release gate: later messages would be deferred as well.
+    return dict(counts)
+
+
+def _request(engine: Engine, args: argparse.Namespace) -> dict[str, object]:
+    from tailwatch.product.delivery import request_verification
+
+    with engine.begin() as conn:
+        message = request_verification(conn, args.subscription, args.actor)
+    return {"verification_message_id": str(message), "sent": False}
+
+
+def _send_verifications(engine: Engine, args: argparse.Namespace) -> dict[str, object]:
+    from tailwatch.product.delivery import send_verification_one
+
+    sender, signer = _sender(args), _signer()
+    counts = _drain(
+        lambda: send_verification_one(
+            engine, sender, signer=signer, production_enabled=bool(args.external)
+        ),
+        args.limit,
+    )
+    return {"external": bool(args.external), "outcomes": counts}
+
+
+def _enqueue(engine: Engine, args: argparse.Namespace) -> dict[str, object]:
+    from tailwatch.product.delivery import enqueue_approved
+
+    with engine.begin() as conn:
+        created = enqueue_approved(conn, args.tenant, args.actor)
+    return {"enqueued": [str(d) for d in created]}
+
+
+def _deliver(engine: Engine, args: argparse.Namespace) -> dict[str, object]:
+    from tailwatch.product.delivery import deliver_one
+
+    sender, signer = _sender(args), _signer()
+    counts = _drain(
+        lambda: deliver_one(
+            engine, sender, live_allowed=lambda _: bool(args.external), signer=signer
+        ),
+        args.limit,
+    )
+    return {"external": bool(args.external), "outcomes": counts}
+
+
+def _reconcile(engine: Engine, args: argparse.Namespace) -> dict[str, object]:
+    from tailwatch.product.delivery import reconcile_abandoned, reconcile_uncertain
+
+    if args.stale_minutes < 1:
+        raise ValueError("positive staleness interval required")
+    with engine.begin() as conn:
+        abandoned = reconcile_abandoned(
+            conn, datetime.now(UTC) - timedelta(minutes=args.stale_minutes)
+        )
+    retried: dict[str, int] = {}
+    if args.retry:
+        retried = reconcile_uncertain(
+            engine,
+            _sender(args),
+            live_allowed=lambda _: bool(args.external),
+            signer=_signer(),
+            limit=args.limit,
+        )
+    return {"marked_uncertain": abandoned, "retried": retried}
+
+
+def _resolve(engine: Engine, args: argparse.Namespace) -> dict[str, object]:
+    from tailwatch.product.delivery import resolve_delivery
+
+    with engine.begin() as conn:
+        resolve_delivery(
+            conn,
+            args.delivery,
+            state=args.state,
+            actor=args.actor,
+            evidence=args.evidence,
+            provider_id=args.provider_id,
+        )
+    return {"delivery_id": str(args.delivery), "state": args.state}
+
+
+HANDLERS: dict[str, Callable[[Engine, argparse.Namespace], dict[str, object]]] = {
+    "draft-alerts": _draft,
+    "request-verification": _request,
+    "send-verifications": _send_verifications,
+    "outbox-enqueue": _enqueue,
+    "outbox-deliver": _deliver,
+    "outbox-reconcile": _reconcile,
+    "outbox-resolve": _resolve,
+}

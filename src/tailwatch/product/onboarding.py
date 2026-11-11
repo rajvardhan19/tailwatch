@@ -1,4 +1,9 @@
-"""Local operator provisioning; secrets are written once to an owner-only file."""
+"""Local operator provisioning; secrets are written once to an owner-only file.
+
+The operator receives only the customer API key. Recipient verification and
+unsubscribe secrets are delivered to the recipient through signed message links,
+so an operator cannot confirm a destination on the recipient's behalf.
+"""
 
 import json
 import os
@@ -8,7 +13,7 @@ from uuid import uuid4
 from sqlalchemy import Engine, text
 
 from tailwatch.product.api import issue_key
-from tailwatch.product.delivery import subscribe
+from tailwatch.product.delivery import request_verification, subscribe
 
 
 def provision_workspace(engine: Engine, *, name: str, email: str, output: Path) -> dict[str, str]:
@@ -24,15 +29,15 @@ def provision_workspace(engine: Engine, *, name: str, email: str, output: Path) 
                 {"id": tenant, "name": name},
             )
             key = issue_key(conn, tenant, "customer")
-            subscription, verify, unsubscribe = subscribe(conn, tenant, email)
+            subscription, _, _ = subscribe(conn, tenant, email)
+            message = request_verification(conn, subscription, "provision-workspace")
             json.dump(
                 {
                     "tenant_id": str(tenant),
                     "customer_key": key,
                     "subscription_id": str(subscription),
                     "destination": email,
-                    "verification_token": verify,
-                    "unsubscribe_token": unsubscribe,
+                    "verification_message_id": str(message),
                     "verified": False,
                     "delivery_enabled": False,
                 },
@@ -47,5 +52,6 @@ def provision_workspace(engine: Engine, *, name: str, email: str, output: Path) 
     return {
         "tenant_id": str(tenant),
         "subscription_id": str(subscription),
+        "verification_message_id": str(message),
         "secret_file": str(output),
     }

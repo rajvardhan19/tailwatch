@@ -11,6 +11,7 @@ from sqlalchemy import Connection, Engine, text
 
 from tailwatch.operations.release import allowed_model
 from tailwatch.product.alerts import append_event, events
+from tailwatch.product.messages import LinkSigner
 from tailwatch.sources.policy import Contract, NonEmpty
 
 
@@ -43,8 +44,15 @@ class ReviewInput(Contract):
     human_confirmed: bool
 
 
-def create_app(engine: Engine, *, production_enabled: bool = False) -> FastAPI:
+def create_app(
+    engine: Engine, *, production_enabled: bool = False, signer: LinkSigner | None = None
+) -> FastAPI:
     app = FastAPI(title="Tailwatch", version="0.1.0")
+
+    def link_signer() -> LinkSigner:
+        if signer is None:
+            raise HTTPException(503, "Recipient links are not configured")
+        return signer
 
     def authenticate(authorization: Annotated[str | None, Header()] = None) -> Principal:
         if (
@@ -90,6 +98,26 @@ def create_app(engine: Engine, *, production_enabled: bool = False) -> FastAPI:
         with engine.begin() as conn:
             if not unsubscribe(conn, subscription, body.token):
                 raise HTTPException(404, "Invalid subscription token")
+        return {"active": False}
+
+    @app.post("/verifications/{message}/confirm")
+    def confirm_verification_link(message: UUID, body: SubscriptionToken) -> dict[str, bool]:
+        from tailwatch.product.delivery import confirm_verification
+
+        keys = link_signer()
+        with engine.begin() as conn:
+            if not confirm_verification(conn, message, body.token, keys):
+                raise HTTPException(404, "Invalid, expired or consumed verification")
+        return {"verified": True}
+
+    @app.post("/deliveries/{delivery}/unsubscribe")
+    def unsubscribe_link(delivery: UUID, body: SubscriptionToken) -> dict[str, bool]:
+        from tailwatch.product.delivery import unsubscribe_delivery
+
+        keys = link_signer()
+        with engine.begin() as conn:
+            if not unsubscribe_delivery(conn, delivery, body.token, keys):
+                raise HTTPException(404, "Invalid unsubscribe link")
         return {"active": False}
 
     @app.get("/subscriptions")
