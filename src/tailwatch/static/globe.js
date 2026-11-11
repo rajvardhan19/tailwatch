@@ -98,7 +98,7 @@ export function createGlobe(canvas, { tooltip, onSelect, onView } = {}) {
   const context = canvas.getContext('2d');
   const grid = graticule();
   const state = {
-    lon: -40, lat: 24, width: 0, height: 0, dpr: 1, radius: 0, cx: 0, cy: 0,
+    lon: -40, lat: 24, width: 0, height: 0, dpr: 1, radius: 0, base: 0, zoom: 1, cx: 0, cy: 0,
     land: new Float32Array(0), arcs: [], traffic: [], live: [], selected: null, hover: null,
     motion: true, dragging: null, target: null, last: 0, frame: 0, clock: 0,
   };
@@ -199,7 +199,7 @@ export function createGlobe(canvas, { tooltip, onSelect, onView } = {}) {
     for (const line of grid) polyline(line, frame);
 
     const land = state.land;
-    const size = Math.max(1.5, R / 150);
+    const size = Math.min(3, Math.max(1.5, R / 150));
     const [cl, sl, cp, sp] = frame;
     context.fillStyle = colours.land;
     for (let i = 0; i < land.length; i += 3) {
@@ -276,20 +276,13 @@ export function createGlobe(canvas, { tooltip, onSelect, onView } = {}) {
   }
 
   // Real, anonymous ADS-B positions, dead-reckoned from their reported track and ground
-  // speed for at most two minutes. Dots plus heading ticks: shape, not only hue, sets
-  // them apart from land.
+  // speed for at most two minutes. Each aircraft is a heading-oriented glyph with a trail
+  // whose length is proportional to ground speed: shape, not only hue, sets them apart.
   function drawLive([cl, sl, cp, sp]) {
     const now = Date.now();
     const R = state.radius;
-    const dots = [];
-    context.beginPath();
-    for (const plane of state.live) {
-      let { lon, lat } = plane;
-      if (plane.track >= 0 && plane.gs > 0) {
-        const degrees = (plane.gs * Math.min(120, Math.max(0, (now - plane.at) / 1000))) / 3600 / 60;
-        lat += degrees * plane.cosTrack;
-        lon += (degrees * plane.sinTrack) / Math.max(0.2, Math.cos(lat * RAD));
-      }
+    const scale = Math.min(2.2, 0.75 + state.zoom * 0.35);
+    const project3 = (lon, lat) => {
       const l = lon * RAD;
       const p = lat * RAD;
       const c = Math.cos(p);
@@ -297,25 +290,65 @@ export function createGlobe(canvas, { tooltip, onSelect, onView } = {}) {
       const vy = Math.sin(p);
       const vz = c * Math.cos(l);
       const z1 = vx * sl + vz * cl;
-      const z = vy * sp + z1 * cp;
-      if (z <= 0.02) continue;
-      const x = state.cx + R * (vx * cl - vz * sl);
-      const y = state.cy - R * (vy * cp - z1 * sp);
-      dots.push(x, y);
-      if (plane.track >= 0) {
-        // Screen-space heading tick, foreshortened toward the limb.
-        const length = 4 * Math.max(0.35, z);
-        context.moveTo(x, y);
-        context.lineTo(x + length * plane.sinTrack, y - length * plane.cosTrack);
+      return [state.cx + R * (vx * cl - vz * sl), state.cy - R * (vy * cp - z1 * sp), vy * sp + z1 * cp];
+    };
+    const trails = [];
+    const glyphs = [];
+    const dots = [];
+    for (const plane of state.live) {
+      let { lon, lat } = plane;
+      const heading = plane.track >= 0;
+      if (heading && plane.gs > 0) {
+        const degrees = (plane.gs * Math.min(900, Math.max(0, (now - plane.at) / 1000))) / 3600 / 60;
+        lat += degrees * plane.cosTrack;
+        lon += (degrees * plane.sinTrack) / Math.max(0.2, Math.cos(lat * RAD));
       }
+      const [x, y, z] = project3(lon, lat);
+      if (z <= 0.02 || x < -20 || y < -20 || x > state.width + 20 || y > state.height + 20) continue;
+      if (!heading) {
+        dots.push(x, y);
+        continue;
+      }
+      const [ax, ay] = project3(
+        lon + (0.5 * plane.sinTrack) / Math.max(0.2, Math.cos(lat * RAD)),
+        lat + 0.5 * plane.cosTrack,
+      );
+      const length = Math.hypot(ax - x, ay - y);
+      if (length < 0.01) {
+        dots.push(x, y);
+        continue;
+      }
+      const ux = (ax - x) / length;
+      const uy = (ay - y) / length;
+      const size = scale * Math.max(0.5, z);
+      const tail = Math.min(26, (plane.gs / 480) * 15) * size;
+      trails.push(x, y, x - ux * tail, y - uy * tail);
+      glyphs.push(x, y, ux, uy, size);
     }
-    context.globalAlpha = 0.4;
+    context.lineCap = 'round';
     context.strokeStyle = colours.live;
     context.lineWidth = 1;
+    context.globalAlpha = 0.3;
+    context.beginPath();
+    for (let i = 0; i < trails.length; i += 4) {
+      context.moveTo(trails[i], trails[i + 1]);
+      context.lineTo(trails[i + 2], trails[i + 3]);
+    }
     context.stroke();
-    context.globalAlpha = 0.8;
+    context.globalAlpha = 0.95;
     context.fillStyle = colours.live;
-    for (let i = 0; i < dots.length; i += 2) context.fillRect(dots[i] - 0.8, dots[i + 1] - 0.8, 1.6, 1.6);
+    context.beginPath();
+    for (let i = 0; i < glyphs.length; i += 5) {
+      const [x, y, ux, uy, k] = glyphs.slice(i, i + 5);
+      // Chevron: nose ahead, swept wings behind, notch at the tail.
+      context.moveTo(x + ux * 3.6 * k, y + uy * 3.6 * k);
+      context.lineTo(x - ux * 2.6 * k - uy * 2.4 * k, y - uy * 2.6 * k + ux * 2.4 * k);
+      context.lineTo(x - ux * 1.2 * k, y - uy * 1.2 * k);
+      context.lineTo(x - ux * 2.6 * k + uy * 2.4 * k, y - uy * 2.6 * k - ux * 2.4 * k);
+      context.closePath();
+    }
+    for (let i = 0; i < dots.length; i += 2) context.rect(dots[i] - 1, dots[i + 1] - 1, 2, 2);
+    context.fill();
     context.globalAlpha = 1;
   }
 
@@ -330,9 +363,15 @@ export function createGlobe(canvas, { tooltip, onSelect, onView } = {}) {
       const dLat = state.target.lat - state.lat;
       state.lon = wrap(state.lon + dLon * k);
       state.lat += dLat * k;
-      if (Math.abs(dLon) < 0.05 && Math.abs(dLat) < 0.05) state.target = null;
-    } else if (state.motion && !state.dragging) {
-      state.lon = wrap(state.lon + dt * 3);
+      if (state.target.zoom) {
+        state.zoom += (state.target.zoom - state.zoom) * k;
+        state.radius = state.base * state.zoom;
+      }
+      const zoomDone = !state.target.zoom || Math.abs(state.target.zoom - state.zoom) < 0.01;
+      if (Math.abs(dLon) < 0.05 && Math.abs(dLat) < 0.05 && zoomDone) state.target = null;
+    } else if (state.motion && !state.dragging && !state.live.length) {
+      // With live traffic the aircraft provide the motion; the view holds still.
+      state.lon = wrap(state.lon + (dt * 3) / state.zoom);
     }
     draw();
     onView?.(state.lon, state.lat);
@@ -351,7 +390,8 @@ export function createGlobe(canvas, { tooltip, onSelect, onView } = {}) {
     state.dpr = Math.min(2, window.devicePixelRatio || 1);
     canvas.width = Math.round(box.width * state.dpr);
     canvas.height = Math.round(box.height * state.dpr);
-    state.radius = Math.min(box.width, box.height) * 0.43;
+    state.base = Math.min(box.width, box.height) * 0.43;
+    state.radius = state.base * state.zoom;
     state.cx = box.width / 2;
     state.cy = box.height / 2;
     schedule();
@@ -432,7 +472,31 @@ export function createGlobe(canvas, { tooltip, onSelect, onView } = {}) {
     showTooltip(null);
     schedule();
   });
+  function zoomBy(factor) {
+    state.zoom = clamp(state.zoom * factor, 1, 6);
+    state.radius = state.base * state.zoom;
+    if (state.target) delete state.target.zoom;
+    schedule();
+  }
+  canvas.addEventListener(
+    'wheel',
+    event => {
+      event.preventDefault();
+      zoomBy(Math.exp(-event.deltaY * 0.0015));
+    },
+    { passive: false },
+  );
   canvas.addEventListener('keydown', event => {
+    if (event.key === '+' || event.key === '=') {
+      event.preventDefault();
+      zoomBy(1.25);
+      return;
+    }
+    if (event.key === '-' || event.key === '_') {
+      event.preventDefault();
+      zoomBy(0.8);
+      return;
+    }
     const moves = { ArrowLeft: [-10, 0], ArrowRight: [10, 0], ArrowUp: [0, 8], ArrowDown: [0, -8] };
     const move = moves[event.key];
     if (!move) return;
@@ -480,6 +544,17 @@ export function createGlobe(canvas, { tooltip, onSelect, onView } = {}) {
         const centre = { lon: arc.centre.lon, lat: clamp(arc.centre.lat, -50, 55) };
         if (state.motion) state.target = centre;
         else Object.assign(state, centre);
+      }
+      schedule();
+    },
+    zoomBy,
+    setView({ lon, lat, zoom }) {
+      const target = { lon, lat: clamp(lat, -70, 70), zoom: clamp(zoom ?? state.zoom, 1, 6) };
+      if (state.motion) {
+        state.target = target;
+      } else {
+        Object.assign(state, { lon: target.lon, lat: target.lat, zoom: target.zoom });
+        state.radius = state.base * state.zoom;
       }
       schedule();
     },

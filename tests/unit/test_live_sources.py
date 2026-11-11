@@ -169,3 +169,92 @@ def test_live_traffic_merges_hubs_without_identity_and_polls_only_when_watched()
     text = json.dumps(snapshot)
     for secret in ("abc123", "def456", "SECRET1", "N1SECRET", "GLF6"):
         assert secret not in text
+
+
+def test_warm_up_refills_every_stale_hub_before_settling_to_the_slow_pace():
+    feeds = LiveFeeds(
+        None,  # type: ignore[arg-type]
+        LIVE,
+        None,  # type: ignore[arg-type]
+        None,
+        hubs=airtraffic.HUBS[:4],
+        air_get=lambda _: json.dumps({"ac": [aircraft("abc123")]}).encode(),
+        budget_for=lambda _: CountingBudget(),
+        hub_interval=30.0,  # the steady pace alone would take two minutes
+        warmup_interval=0.01,
+    )
+    feeds.traffic()
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline and len(feeds.traffic()["hubs"]) < 4:
+        time.sleep(0.05)
+    snapshot = feeds.traffic()
+    feeds.stop()
+    assert (len(snapshot["hubs"]), snapshot["hub_total"]) == (4, 4)
+
+
+class QuotaGetter:
+    def __init__(self, remaining: int) -> None:
+        self.quota = airtraffic.ProviderQuota(
+            limit=500, remaining=remaining, reset_at=time.time() + 3600
+        )
+
+    def __call__(self, url: str) -> bytes:
+        return b'{"ac": []}'
+
+
+def test_provider_quota_headers_pace_and_pause_polling():
+    quota = airtraffic.ProviderQuota()
+    quota.update(
+        {
+            "X-RateLimit-Limit": "500, 500;w=86400",
+            "x-ratelimit-remaining": "386",
+            "x-ratelimit-reset": "77692",
+        }
+    )
+    assert (quota.limit, quota.remaining) == (500, 386)
+    assert quota.reset_at is not None and 77_000 < quota.reset_at - time.time() <= 77_692
+    feeds = LiveFeeds(
+        None,  # type: ignore[arg-type]
+        LIVE,
+        None,  # type: ignore[arg-type]
+        None,
+        hubs=airtraffic.HUBS[:1],
+        air_get=QuotaGetter(400),
+        budget_for=lambda _: CountingBudget(),
+    )
+    assert feeds._next_air_wait() == feeds.warmup_interval  # plenty left: quick warm-up
+    feeds.air_get = QuotaGetter(45)  # 30 usable above the reserve: spread over the hour
+    assert feeds._next_air_wait() == pytest.approx(3600 / 30, rel=0.05)
+    feeds.air_get = QuotaGetter(10)  # inside the reserve: wait for the provider's reset
+    assert feeds._next_air_wait() > 3500 and feeds._air.status == "paused_provider_quota"
+    assert LIVE.sources[0].max_requests <= 450  # durable cap stays under the provider's 500
+
+
+def test_one_failing_hub_backs_off_alone_while_the_others_refresh():
+    broken = airtraffic.HUBS[1].name
+
+    def get(url: str) -> bytes:
+        if f"{airtraffic.HUBS[1].latitude:.2f}" in url:
+            return b'{"ac": [truncated'  # a cut-off provider response
+        return json.dumps({"ac": [aircraft("abc123")]}).encode()
+
+    feeds = LiveFeeds(
+        None,  # type: ignore[arg-type]
+        LIVE,
+        None,  # type: ignore[arg-type]
+        None,
+        hubs=airtraffic.HUBS[:4],
+        air_get=get,
+        budget_for=lambda _: CountingBudget(),
+        hub_interval=30.0,
+        warmup_interval=0.01,
+    )
+    feeds.traffic()
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline and len(feeds.traffic()["hubs"]) < 3:
+        time.sleep(0.05)
+    snapshot = feeds.traffic()
+    feeds.stop()
+    assert broken not in {h["name"] for h in snapshot["hubs"]}
+    assert len(snapshot["hubs"]) == 3 and snapshot["status"] == "live"
+    assert snapshot["detail"] == "1 hub retrying: JSONDecodeError"

@@ -252,3 +252,31 @@ def test_parallel_workers_share_one_daily_request_limit(database):
 
     with ThreadPoolExecutor(max_workers=4) as workers:
         assert sum(workers.map(reserve, range(8))) == 3
+
+
+def test_mid_day_limit_changes_can_tighten_but_never_raise_a_budget(database):
+    from sqlalchemy import text
+
+    base = load_manifest(Path("config/sources.fixture.json")).sources[0].model_dump()
+    source_id = "tighten-" + uuid4().hex
+    with database.connect() as conn:
+        day = conn.execute(text("SELECT (clock_timestamp() AT TIME ZONE 'UTC')::date")).scalar_one()
+
+    def budget(limit: int) -> DurableBudget:
+        return DurableBudget(
+            database,
+            Source.model_validate(base | {"source_id": source_id, "max_requests": limit}),
+            day,
+        )
+
+    budget(5).reserve(0)
+    budget(5).reserve(0)
+    # Tightening applies at once: two used, so a new limit of 2 is already exhausted.
+    with pytest.raises(PolicyDenied, match="exhausted"):
+        budget(2).reserve(0)
+    budget(3).reserve(0)  # third request still fits under the tighter limit of 3
+    # Raising mid-day has no effect: the recorded 5 still caps today.
+    budget(100).reserve(0)
+    budget(100).reserve(0)
+    with pytest.raises(PolicyDenied, match="exhausted"):
+        budget(100).reserve(0)

@@ -30,7 +30,11 @@ from tailwatch.sources.sec.current import filing_details, parse_current
 from tailwatch.sources.sec.ingest import SECJournal
 
 SEC_WORKER_LOCK = 754019226  # shared with capture_submissions: one SEC worker at a time
-HUB_STALE_SECONDS = 300
+# ADSB.lol's free API allows ~500 requests/day, so each hub refreshes about every
+# 10 minutes; snapshots stay displayable (as dead-reckoned estimates) for 20 minutes.
+HUB_STALE_SECONDS = 1200
+QUOTA_RESERVE = 15  # never spend the provider's last requests
+LOW_QUOTA = 60  # below this, spread what is left until the provider's reset
 
 
 @dataclass
@@ -39,6 +43,7 @@ class _Feed:
     failures: int = 0
     paused_until: float = 0.0
     updated_at: float = 0.0
+    detail: str | None = None
 
 
 @dataclass
@@ -74,7 +79,8 @@ class LiveFeeds:
         air_get: airtraffic.Fetcher | None = None,
         sec_transport: Transport | None = None,
         budget_for: Callable[[Source], Budget] | None = None,
-        hub_interval: float = 6.0,
+        hub_interval: float = 43.0,
+        warmup_interval: float = 2.0,
         sec_interval: float = 60.0,
         idle_after: float = 120.0,
         details_per_poll: int = 4,
@@ -82,10 +88,12 @@ class LiveFeeds:
         self.engine, self.store, self.user_agent = engine, store, user_agent
         self.air_source = _live(manifest, airtraffic.CAPABILITY)
         self.sec_source = _live(manifest, "sec") if user_agent else None
-        self.hubs, self.air_get = hubs, air_get or airtraffic._https_get
+        self.hubs = hubs
+        self.air_get: airtraffic.Fetcher = air_get or airtraffic.ProviderHTTP()
         self.sec_transport = sec_transport
         self.budget_for = budget_for or self._durable_budget
         self.hub_interval, self.sec_interval = hub_interval, sec_interval
+        self.warmup_interval = warmup_interval
         self.idle_after, self.details_per_poll = idle_after, details_per_poll
         self._lock = threading.Lock()
         self._stop = threading.Event()
@@ -93,6 +101,8 @@ class LiveFeeds:
         self._viewed = 0.0
         self._air, self._sec = _Feed(), _Feed()
         self._hubs: dict[str, _HubSnapshot] = {}
+        # Per-hub retry state: name -> (consecutive failures, retry not before, reason).
+        self._hub_errors: dict[str, tuple[int, float, str]] = {}
         self._filings = _Filings()
 
     # ----- lifecycle -----------------------------------------------------------------
@@ -130,7 +140,9 @@ class LiveFeeds:
         return DurableBudget(self.engine, source, day)
 
     def _failed(self, feed: _Feed, error: Exception) -> None:
+        code = getattr(error, "code", None)
         with self._lock:
+            feed.detail = type(error).__name__ + (f" {code}" if isinstance(code, int) else "")
             if isinstance(error, PolicyDenied):
                 # Budget exhausted or permission expired: stay quiet, never retry hot.
                 feed.status, feed.paused_until = "paused_policy", time.monotonic() + 900
@@ -153,7 +165,12 @@ class LiveFeeds:
         index = 0
         assert self.air_source is not None
         while self._wait_turn(self._air, self.hub_interval):
-            hub = self.hubs[index % len(self.hubs)]
+            now = time.monotonic()
+            due = [h for h in self.hubs if self._hub_errors.get(h.name, (0, 0.0, ""))[1] <= now]
+            if not due:
+                self._stop.wait(2.0)
+                continue
+            hub = due[index % len(due)]
             index += 1
             try:
                 payload = airtraffic.fetch_area(
@@ -168,9 +185,46 @@ class LiveFeeds:
                     self._hubs[hub.name] = _HubSnapshot(time.time(), kept, excluded)
                     self._air.status, self._air.failures = "live", 0
                     self._air.updated_at = time.time()
+                    self._hub_errors.pop(hub.name, None)
+                    self._air.detail = self._hub_summary()
+            except PolicyDenied as error:
+                self._failed(self._air, error)  # budget/permission: the whole feed pauses
             except (OSError, ValueError, SQLAlchemyError) as error:
-                self._failed(self._air, error)
-            self._stop.wait(self.hub_interval)
+                # A provider error backs off only this hub; the others keep refreshing.
+                code = getattr(error, "code", None)
+                reason = type(error).__name__ + (f" {code}" if isinstance(code, int) else "")
+                with self._lock:
+                    failures = self._hub_errors.get(hub.name, (0, 0.0, ""))[0] + 1
+                    retry = time.monotonic() + min(600.0, 30.0 * 2 ** (failures - 1))
+                    self._hub_errors[hub.name] = (failures, retry, reason)
+                    self._air.detail = self._hub_summary()
+            self._stop.wait(self._next_air_wait())
+
+    def _hub_summary(self) -> str | None:
+        if not self._hub_errors:
+            return None
+        reasons = sorted({reason for _, _, reason in self._hub_errors.values()})
+        count = len(self._hub_errors)
+        return f"{count} hub{'s' if count != 1 else ''} retrying: {', '.join(reasons)}"
+
+    def _next_air_wait(self) -> float:
+        """Refill stale coverage at ~1 request/s after idling, then settle to the pace."""
+        now = time.time()
+        with self._lock:
+            fresh = sum(now - s.fetched <= HUB_STALE_SECONDS for s in self._hubs.values())
+            fresh += len(self._hub_errors)  # retrying hubs wait their own backoff
+        wait = self.warmup_interval if fresh < len(self.hubs) else self.hub_interval
+        quota = getattr(self.air_get, "quota", None)
+        if isinstance(quota, airtraffic.ProviderQuota) and quota.remaining is not None:
+            seconds_left = max(60.0, (quota.reset_at or now + 86400) - now)
+            usable = quota.remaining - QUOTA_RESERVE
+            if usable <= 0:
+                with self._lock:
+                    self._air.status = "paused_provider_quota"
+                return seconds_left
+            if usable < LOW_QUOTA:
+                wait = max(wait, seconds_left / usable)
+        return wait
 
     def traffic(self) -> dict[str, Any]:
         self.touch()
@@ -178,7 +232,8 @@ class LiveFeeds:
         merged: dict[str, tuple[float, tuple[float, ...]]] = {}
         hubs, excluded = [], {"privacy_listed": 0, "low_or_ground": 0, "stale_or_invalid": 0}
         with self._lock:
-            status = self._air.status
+            status, detail = self._air.status, self._air.detail
+            quota = getattr(self.air_get, "quota", None)
             for name, snapshot in self._hubs.items():
                 if now - snapshot.fetched > HUB_STALE_SECONDS:
                     continue  # stale coverage is dropped, never shown as current
@@ -207,6 +262,15 @@ class LiveFeeds:
             "fields": ["lon", "lat", "track", "ground_speed_kt", "altitude_ft", "age_s"],
             "aircraft": aircraft,
             "hubs": sorted(hubs, key=lambda h: str(h["name"])),
+            "hub_total": len(self.hubs),
+            "detail": detail,
+            "provider_quota": (
+                {"limit": quota.limit, "remaining": quota.remaining}
+                if isinstance(quota, airtraffic.ProviderQuota) and quota.remaining is not None
+                else None
+            ),
+            "refresh": "each hub about every 10 minutes (ADSB.lol free tier: ~500 requests/day); "
+            "between refreshes positions are estimated along the reported track",
             "excluded": excluded,
         }
 

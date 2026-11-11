@@ -45,6 +45,8 @@ if url:
         signer=signer_from_env(),
         reference_source=os.environ.get("TAILWATCH_REFERENCE_SOURCE") or None,
         live=_live_feeds(engine),
+        # Only for servers bound to 127.0.0.1: lets the live feeds render without a key.
+        live_local_view=os.environ.get("TAILWATCH_LIVE_LOCAL_VIEW") == "1",
     )
 else:
     app = FastAPI(title="Tailwatch synthetic preview")

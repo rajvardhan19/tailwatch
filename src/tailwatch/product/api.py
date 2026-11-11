@@ -93,6 +93,7 @@ def create_app(
     signer: LinkSigner | None = None,
     reference_source: str | None = None,
     live: "LiveFeeds | None" = None,
+    live_local_view: bool = False,
 ) -> FastAPI:
     app = FastAPI(title="Tailwatch", version="0.1.0")
 
@@ -239,16 +240,24 @@ def create_app(
     @app.get("/live/status")
     def live_status() -> dict[str, Any]:
         # Public: says only whether research feeds are configured, never their data.
-        return {"enabled": live is not None, **(live.enabled() if live else {})}
+        status: dict[str, Any] = {"enabled": live is not None}
+        if live is not None:
+            status |= live.enabled() | {"open": live_local_view}
+        return status
 
-    @app.get("/live/traffic")
-    def live_traffic(principal: Annotated[Principal, Depends(authenticate)]) -> dict[str, Any]:
+    def live_viewer(authorization: Annotated[str | None, Header()] = None) -> None:
+        # Local view is for loopback-only servers; everywhere else a key is required.
+        if not live_local_view:
+            authenticate(authorization)
+
+    @app.get("/live/traffic", dependencies=[Depends(live_viewer)])
+    def live_traffic() -> dict[str, Any]:
         if live is None or not live.enabled()["traffic"]:
             raise HTTPException(404, "Live air traffic is not configured")
         return live.traffic()
 
-    @app.get("/live/filings")
-    def live_filings(principal: Annotated[Principal, Depends(authenticate)]) -> dict[str, Any]:
+    @app.get("/live/filings", dependencies=[Depends(live_viewer)])
+    def live_filings() -> dict[str, Any]:
         if live is None or not live.enabled()["filings"]:
             raise HTTPException(404, "Live SEC filings are not configured")
         return live.filings()

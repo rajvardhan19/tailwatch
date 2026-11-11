@@ -15,7 +15,7 @@ Open http://127.0.0.1:8765. Without `TAILWATCH_DATABASE_URL`, the dashboard is a
 
 `readiness` checks required source presence, completeness, content-hash verification, freshness, missingness and declared drift thresholds. Missing sources, outages, corrupt objects, budget exhaustion or incomplete parsing suppress external output. Thresholds must be registered from development observations. Production volume/cost/review-queue alert destinations still need operator configuration.
 
-`DurableBudget` reserves count and micro-USD cost atomically in a committed transaction before provider access, across process restarts. It never refunds failed requests. Daily limits cannot silently change mid-period. Use it for live adapters; do not create a new in-memory budget on every retry. Resend delivery additionally reserves the active release's daily quota; the default free-first release schema caps that at 100 messages/day.
+`DurableBudget` reserves count and micro-USD cost atomically in a committed transaction before provider access, across process restarts. It never refunds failed requests. A mid-day limit change can only tighten a budget: the effective limit is the lower of the recorded and configured limits, and increases apply from the next UTC day. Use it for live adapters; do not create a new in-memory budget on every retry. Resend delivery additionally reserves the active release's daily quota; the default free-first release schema caps that at 100 messages/day.
 
 ## Backup and recovery
 
@@ -43,7 +43,7 @@ Release manifests now require `calendar_valid_through` covering their entire lif
 
 Live SEC, flight and ADSB.lol adapters require a budget whose source configuration matches the request. `RequestBudget` is for fixtures only; passing it for a live source fails before transport access. Live workers inject `DurableBudget(engine, source, utc_day)`. Custom budget implementations must honor both `validate_for(source)` and `reserve(cost_microusd)`.
 
-The durable ledger uses the database UTC date to reject yesterday's or future-dated budget before reserving. Recreate the budget for the new UTC day at rollover; never replay requests against yesterday's unused quota. Concurrent workers and restarts share the same source/day count and cost limits. A changed daily limit is rejected rather than silently resetting the ledger. Retries remain charged even when provider access fails.
+The durable ledger uses the database UTC date to reject yesterday's or future-dated budget before reserving. Recreate the budget for the new UTC day at rollover; never replay requests against yesterday's unused quota. Concurrent workers and restarts share the same source/day count and cost limits. Lowering a configured limit takes effect immediately against requests already counted; raising it never resets or extends the current day. Retries remain charged even when provider access fails.
 
 ## Checkpointed pipeline execution
 

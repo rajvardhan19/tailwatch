@@ -60,6 +60,7 @@ def test_live_routes_require_a_key_and_hide_unconfigured_feeds(database, tmp_pat
         "enabled": True,
         "traffic": True,
         "filings": False,
+        "open": False,
     }
     assert client.get("/live/traffic").status_code == 401
     assert client.get("/live/filings", headers=auth).status_code == 404
@@ -68,8 +69,13 @@ def test_live_routes_require_a_key_and_hide_unconfigured_feeds(database, tmp_pat
     while time.monotonic() < deadline and not body["aircraft"]:
         time.sleep(0.05)
         body = client.get("/live/traffic", headers=auth).json()
-    feeds.stop()
     assert len(body["aircraft"]) == 1 and "abc123" not in json.dumps(body)
+    # Local view (loopback-only servers) renders feeds without a key; nothing else opens.
+    local = TestClient(create_app(database, live=feeds, live_local_view=True))
+    assert local.get("/live/status").json()["open"] is True
+    assert local.get("/live/traffic").status_code == 200
+    assert local.get("/alerts").status_code == 401
+    feeds.stop()
 
 
 def test_durable_budget_exhaustion_pauses_the_air_feed(database, tmp_path):

@@ -44,10 +44,12 @@ class DurableBudget:
             )
             row = conn.execute(
                 text(
+                    # The day's effective limit is the lower of the recorded and configured
+                    # limits: a mid-day change can tighten a budget but never raise or reset it.
                     "UPDATE budget_accounts SET requests=requests+1,cost=cost+:charge "
-                    "WHERE source_id=:id AND budget_day=:day AND requests<request_limit AND "
-                    "cost+:charge<=cost_limit "
-                    "AND request_limit=:requests AND cost_limit=:cost RETURNING requests"
+                    "WHERE source_id=:id AND budget_day=:day "
+                    "AND requests<LEAST(request_limit,:requests) "
+                    "AND cost+:charge<=LEAST(cost_limit,:cost) RETURNING requests"
                 ),
                 {
                     "id": self.source.source_id,
@@ -58,7 +60,7 @@ class DurableBudget:
                 },
             ).first()
             if row is None:
-                raise PolicyDenied("durable budget exhausted or configuration changed")
+                raise PolicyDenied("durable daily budget exhausted")
 
 
 class SourceHealth(Contract):

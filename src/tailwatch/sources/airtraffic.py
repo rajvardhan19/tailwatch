@@ -14,9 +14,14 @@ landing phases that would reveal which airport an aircraft uses.
 
 import json
 import math
-from collections.abc import Callable
+import re
+import time
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from datetime import datetime
+from email.message import Message
 from typing import Any, NamedTuple
+from urllib.error import HTTPError
 from urllib.request import Request, build_opener
 
 from tailwatch.sources.policy import Budget, Mode, Source, authorize
@@ -58,16 +63,54 @@ HUBS: tuple[Hub, ...] = (
 Fetcher = Callable[[str], bytes]
 
 
-def _https_get(url: str) -> bytes:
-    request = Request(
-        url,
-        headers={"Accept": "application/json", "User-Agent": "Tailwatch-research/0.1"},
-    )
-    with build_opener(NoRedirect()).open(request, timeout=20) as response:
-        body: bytes = response.read(MAX_BYTES + 1)
-    if len(body) > MAX_BYTES:
-        raise ValueError("air-traffic response exceeds size limit")
-    return body
+@dataclass
+class ProviderQuota:
+    """The provider's advertised quota (ADSB.lol sends x-ratelimit-* headers)."""
+
+    limit: int | None = None
+    remaining: int | None = None
+    reset_at: float | None = None
+
+    # Quoted: email.message.Message is generic only in type stubs, not at runtime.
+    def update(self, headers: "Mapping[str, str] | Message[str, str] | None") -> None:
+        if headers is None:
+            return
+        values = {k.lower(): v for k, v in headers.items()}
+        limit = re.match(r"\s*(\d+)", values.get("x-ratelimit-limit", ""))
+        remaining = values.get("x-ratelimit-remaining", "").strip()
+        reset = values.get("x-ratelimit-reset", "").strip()
+        if limit:
+            self.limit = int(limit.group(1))
+        if remaining.isdigit():
+            self.remaining = int(remaining)
+        if reset.isdigit():
+            seconds = int(reset)
+            # Small values are "seconds until reset"; epoch timestamps are absolute.
+            self.reset_at = time.time() + seconds if seconds < 1_000_000_000 else float(seconds)
+
+
+class ProviderHTTP:
+    """HTTPS fetcher that records the provider quota from every response, errors included."""
+
+    def __init__(self) -> None:
+        self.quota = ProviderQuota()
+
+    def __call__(self, url: str) -> bytes:
+        request = Request(
+            url,
+            headers={"Accept": "application/json", "User-Agent": "Tailwatch-research/0.1"},
+        )
+        try:
+            response = build_opener(NoRedirect()).open(request, timeout=20)
+        except HTTPError as error:
+            self.quota.update(error.headers)
+            raise
+        with response:
+            self.quota.update(response.headers)
+            body: bytes = response.read(MAX_BYTES + 1)
+        if len(body) > MAX_BYTES:
+            raise ValueError("air-traffic response exceeds size limit")
+        return body
 
 
 def fetch_area(
@@ -76,7 +119,7 @@ def fetch_area(
     source: Source,
     budget: Budget,
     at: datetime,
-    get: Fetcher = _https_get,
+    get: Fetcher,
 ) -> dict[str, Any]:
     """One budgeted, authorized area query. Every attempt consumes quota."""
     if source.kind != "live":
