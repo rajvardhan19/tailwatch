@@ -2,6 +2,7 @@
 
 import hashlib
 import secrets
+from datetime import datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
@@ -10,7 +11,7 @@ from pydantic import Field
 from sqlalchemy import Connection, Engine, text
 
 from tailwatch.operations.release import allowed_model
-from tailwatch.product.alerts import append_event, events
+from tailwatch.product.alerts import append_event, events, verify_history
 from tailwatch.product.messages import LinkSigner
 from tailwatch.sources.policy import Contract, NonEmpty
 
@@ -44,10 +45,80 @@ class ReviewInput(Contract):
     human_confirmed: bool
 
 
+class OutcomeInput(Contract):
+    state: Literal["pending", "announced", "withdrawn", "no_deal"]
+    evidence: tuple[NonEmpty, ...] = Field(default=(), max_length=20)
+    coverage_complete: bool = False
+    note: NonEmpty = Field(max_length=2000)
+    human_confirmed: bool
+
+
+# Customer-visible episodes: tenant-owned, currently approved, and either explicitly
+# synthetic or produced by the active release's exact model. Outcomes stay separate.
+VISIBLE = """
+  SELECT a.episode_id,a.visitor,a.host,a.created_at,a.synthetic,e.body,e.sequence,
+         o.body AS outcome
+  FROM alert_episodes a JOIN LATERAL (
+    SELECT kind,body,sequence FROM alert_events WHERE episode_id=a.episode_id
+    AND kind<>'outcome' ORDER BY sequence DESC LIMIT 1
+  ) e ON e.kind='approved' LEFT JOIN LATERAL (
+    SELECT body FROM alert_events WHERE episode_id=a.episode_id
+    AND kind='outcome' ORDER BY sequence DESC LIMIT 1
+  ) o ON true
+  WHERE a.tenant_id=:tenant AND (a.synthetic OR a.model_hash=CAST(:production_model AS text))
+  AND (CAST(:after AS uuid) IS NULL OR a.episode_id>CAST(:after AS uuid))
+"""
+
+
+def _public_item(row: Any) -> dict[str, Any]:
+    return {
+        "episode_id": str(row["episode_id"]),
+        "visitor": str(row["visitor"]),
+        "host": str(row["host"]),
+        "created_at": row["created_at"].isoformat(),
+        "synthetic": row["synthetic"],
+        "public": row["body"].get("public", {}),
+        "approval_sequence": row["sequence"],
+        "outcome": (row["outcome"] or {}).get("state", "pending"),
+    }
+
+
 def create_app(
-    engine: Engine, *, production_enabled: bool = False, signer: LinkSigner | None = None
+    engine: Engine,
+    *,
+    production_enabled: bool = False,
+    signer: LinkSigner | None = None,
+    reference_source: str | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Tailwatch", version="0.1.0")
+
+    def visible(
+        principal: "Principal",
+        condition: str,
+        params: dict[str, Any],
+        limit: int,
+        after: UUID | None,
+    ) -> dict[str, Any]:
+        model = allowed_model(engine, principal.tenant) if production_enabled else None
+        with engine.connect() as conn:
+            rows = (
+                conn.execute(
+                    text(VISIBLE + condition + " ORDER BY a.episode_id LIMIT :limit"),
+                    params
+                    | {
+                        "tenant": principal.tenant,
+                        "production_model": model,
+                        "after": after,
+                        "limit": limit + 1,
+                    },
+                )
+                .mappings()
+                .all()
+            )
+        return {
+            "rows": rows[:limit],
+            "next_cursor": str(rows[limit - 1]["episode_id"]) if len(rows) > limit else None,
+        }
 
     def link_signer() -> LinkSigner:
         if signer is None:
@@ -174,45 +245,111 @@ def create_app(
         limit: Annotated[int, Query(ge=1, le=100)] = 25,
         after: UUID | None = None,
     ) -> dict[str, Any]:
-        model = allowed_model(engine, principal.tenant) if production_enabled else None
-        with engine.connect() as conn:
-            rows = (
-                conn.execute(
-                    text("""
-              SELECT a.episode_id,a.visitor,a.host,a.created_at,a.synthetic,e.body,e.sequence
-              FROM alert_episodes a JOIN LATERAL (
-                SELECT kind,body,sequence FROM alert_events WHERE episode_id=a.episode_id
-                AND kind<>'outcome' ORDER BY sequence DESC LIMIT 1
-              ) e ON true WHERE a.tenant_id=:tenant AND e.kind='approved'
-              AND (a.synthetic OR a.model_hash=CAST(:production_model AS text))
-              AND (CAST(:after AS uuid) IS NULL OR a.episode_id>CAST(:after AS uuid))
-              ORDER BY a.episode_id LIMIT :limit
-            """),
-                    {
-                        "tenant": principal.tenant,
-                        "production_model": model,
-                        "after": after,
-                        "limit": limit + 1,
-                    },
-                )
-                .mappings()
-                .all()
-            )
-        output = [
-            {
-                "episode_id": str(r["episode_id"]),
-                "visitor": str(r["visitor"]),
-                "host": str(r["host"]),
-                "created_at": r["created_at"].isoformat(),
-                "synthetic": r["synthetic"],
-                "public": r["body"].get("public", {}),
-                "approval_sequence": r["sequence"],
-            }
-            for r in rows[:limit]
-        ]
+        page = visible(principal, "", {}, limit, after)
         return {
-            "items": output,
-            "next_cursor": str(rows[limit - 1]["episode_id"]) if len(rows) > limit else None,
+            "items": [_public_item(r) for r in page["rows"]],
+            "next_cursor": page["next_cursor"],
+        }
+
+    @app.get("/alerts/{episode}")
+    def alert(
+        episode: UUID, principal: Annotated[Principal, Depends(authenticate)]
+    ) -> dict[str, Any]:
+        page = visible(principal, " AND a.episode_id=:episode", {"episode": episode}, 1, None)
+        if not page["rows"]:
+            raise HTTPException(404, "Alert not found")
+        return _public_item(page["rows"][0])
+
+    @app.get("/pairs/{visitor}/{host}")
+    def pair_history(
+        visitor: UUID,
+        host: UUID,
+        principal: Annotated[Principal, Depends(authenticate)],
+        limit: Annotated[int, Query(ge=1, le=100)] = 25,
+        after: UUID | None = None,
+    ) -> dict[str, Any]:
+        if visitor == host:
+            raise HTTPException(422, "A pair needs two different companies")
+        pair = "/".join(sorted((str(visitor), str(host))))
+        page = visible(principal, " AND a.pair_key=:pair", {"pair": pair}, limit, after)
+        return {
+            "visitor": str(visitor),
+            "host": str(host),
+            # Episodes keep their first direction; the reverse hypothesis is labelled.
+            "items": [
+                _public_item(r)
+                | {"direction": "as_requested" if r["visitor"] == visitor else "reverse"}
+                for r in page["rows"]
+            ],
+            "next_cursor": page["next_cursor"],
+        }
+
+    @app.get("/companies/resolve")
+    def resolve_company(
+        principal: Annotated[Principal, Depends(authenticate)],
+        ticker: Annotated[str, Query(pattern=r"^[A-Z0-9][A-Z0-9.-]{0,11}$")],
+        exchange: Annotated[str, Query(pattern=r"^[A-Z0-9]{2,10}$")],
+        at: datetime | None = None,
+    ) -> dict[str, Any]:
+        from tailwatch.db.clock import database_now
+        from tailwatch.entities.repository import AmbiguousTicker, EntityRepository
+
+        if reference_source is None:
+            raise HTTPException(503, "Reference identity source is not configured")
+        if at is not None and (at.tzinfo is None or at.utcoffset() is None):
+            raise HTTPException(422, "Timezone-aware date required")
+        with engine.connect() as conn:
+            known = database_now(conn)
+            effective = at or known
+            if effective > known:
+                raise HTTPException(422, "Future identities are not resolved")
+            try:
+                company = EntityRepository(conn).resolve_company(
+                    ticker,
+                    exchange,
+                    source_id=reference_source,
+                    cutoff=known,
+                    effective_at=effective,
+                )
+            except AmbiguousTicker as error:
+                raise HTTPException(
+                    409, "Ticker is ambiguous on that date; use a company identifier"
+                ) from error
+        if company is None:
+            raise HTTPException(404, "No active security used that ticker on that date")
+        return {
+            "company_id": str(company),
+            "ticker": ticker,
+            "exchange": exchange,
+            "effective_at": effective.isoformat(),
+            "known_as_of": known.isoformat(),
+        }
+
+    @app.get("/companies/{company}/signals")
+    def company_signals(
+        company: UUID,
+        principal: Annotated[Principal, Depends(authenticate)],
+        limit: Annotated[int, Query(ge=1, le=100)] = 25,
+        after: UUID | None = None,
+    ) -> dict[str, Any]:
+        page = visible(
+            principal,
+            " AND (a.visitor=:company OR a.host=:company)",
+            {"company": company},
+            limit,
+            after,
+        )
+        return {
+            "company_id": str(company),
+            "items": [
+                _public_item(r)
+                | {
+                    "role": "visitor" if r["visitor"] == company else "host",
+                    "counterpart": str(r["host"] if r["visitor"] == company else r["visitor"]),
+                }
+                for r in page["rows"]
+            ],
+            "next_cursor": page["next_cursor"],
         }
 
     @app.get("/alerts/{episode}/history")
@@ -385,5 +522,114 @@ def create_app(
             except ValueError as error:
                 raise HTTPException(409, str(error)) from error
         return {"event_hash": digest}
+
+    @app.post("/analyst/alerts/{episode}/outcome")
+    def record_outcome(
+        episode: UUID, body: OutcomeInput, principal: Annotated[Principal, Depends(analyst)]
+    ) -> dict[str, str]:
+        if not body.human_confirmed:
+            raise HTTPException(422, "Human evidence review required")
+        with engine.begin() as conn:
+            if not events(conn, principal.tenant, episode):
+                raise HTTPException(404, "Alert not found")
+            try:
+                # No "public" key: later review transitions must never copy outcome text.
+                digest = append_event(
+                    conn,
+                    tenant=principal.tenant,
+                    episode=episode,
+                    kind="outcome",
+                    actor=principal.key_hash,
+                    body={
+                        "state": body.state,
+                        "evidence": list(body.evidence),
+                        "coverage_complete": body.coverage_complete,
+                        "note": body.note,
+                        "human_confirmed": True,
+                    },
+                )
+            except ValueError as error:
+                raise HTTPException(409, str(error)) from error
+        return {"event_hash": digest}
+
+    @app.get("/analyst/alerts")
+    def review_queue(
+        principal: Annotated[Principal, Depends(analyst)],
+        state: Literal["draft", "review", "approved", "vetoed", "superseded"] = "draft",
+        limit: Annotated[int, Query(ge=1, le=100)] = 25,
+        after: UUID | None = None,
+    ) -> dict[str, Any]:
+        with engine.connect() as conn:
+            rows = (
+                conn.execute(
+                    text("""
+                      SELECT a.episode_id,a.visitor,a.host,a.created_at,a.synthetic,a.model_hash,
+                             a.feature_run_hash,e.sequence,e.recorded_at,e.body
+                      FROM alert_episodes a JOIN LATERAL (
+                        SELECT kind,sequence,recorded_at,body FROM alert_events
+                        WHERE episode_id=a.episode_id AND kind<>'outcome'
+                        ORDER BY sequence DESC LIMIT 1
+                      ) e ON e.kind=:state WHERE a.tenant_id=:tenant
+                      AND (CAST(:after AS uuid) IS NULL OR a.episode_id>CAST(:after AS uuid))
+                      ORDER BY a.episode_id LIMIT :limit
+                    """),
+                    {
+                        "tenant": principal.tenant,
+                        "state": state,
+                        "after": after,
+                        "limit": limit + 1,
+                    },
+                )
+                .mappings()
+                .all()
+            )
+        return {
+            "items": [
+                {
+                    "episode_id": str(r["episode_id"]),
+                    "visitor": str(r["visitor"]),
+                    "host": str(r["host"]),
+                    "created_at": r["created_at"].isoformat(),
+                    "synthetic": r["synthetic"],
+                    "model_hash": r["model_hash"],
+                    "feature_run_hash": r["feature_run_hash"],
+                    "state": state,
+                    "sequence": r["sequence"],
+                    "updated_at": r["recorded_at"].isoformat(),
+                    "body": r["body"],
+                }
+                for r in rows[:limit]
+            ],
+            "next_cursor": str(rows[limit - 1]["episode_id"]) if len(rows) > limit else None,
+        }
+
+    @app.get("/analyst/alerts/{episode}")
+    def review_history(
+        episode: UUID, principal: Annotated[Principal, Depends(analyst)]
+    ) -> dict[str, Any]:
+        with engine.connect() as conn:
+            history = events(conn, principal.tenant, episode)
+        if not history:
+            raise HTTPException(404, "Alert not found")
+        try:
+            head: str | None = verify_history(history)
+        except ValueError:
+            head = None
+        return {
+            "episode_id": str(episode),
+            "chain_verified": head is not None,
+            "chain_head": head,
+            "items": [
+                {
+                    "sequence": e["sequence"],
+                    "kind": e["kind"],
+                    "actor": e["actor"],
+                    "recorded_at": e["recorded_at"].isoformat(),
+                    "event_hash": e["event_hash"],
+                    "body": e["body"],
+                }
+                for e in history
+            ],
+        }
 
     return app

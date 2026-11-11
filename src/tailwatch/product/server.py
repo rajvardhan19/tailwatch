@@ -18,6 +18,7 @@ app = (
         create_engine(url, pool_pre_ping=True),
         production_enabled=os.environ.get("TAILWATCH_ENABLE_PRODUCTION") == "1",
         signer=signer_from_env(),
+        reference_source=os.environ.get("TAILWATCH_REFERENCE_SOURCE") or None,
     )
     if url
     else FastAPI(title="Tailwatch synthetic preview")
