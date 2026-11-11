@@ -37,7 +37,7 @@ uv run --locked uvicorn tailwatch.product.server:app --host 127.0.0.1 --port 876
 
 Dependency installation needs package-index access once; these commands then run without provider credentials. `fixture` reports synthetic mode and never invents a deal probability. The root is the application checkout; any local nested `tailwatch/` clone is ignored and left untouched.
 
-Open http://127.0.0.1:8765 for the synthetic dashboard. See the [operations and release runbook](docs/runbooks/operations-release.md) for database/API setup and the [free-first stack](docs/runbooks/free-first-stack.md) for provider decisions. The default preview needs no credentials and sends no notifications.
+Open http://127.0.0.1:8765 for the research terminal: an evidence globe of completed visits behind reviewed signals, per-signal conditions and gates, and an event tape. The demo uses fictional companies and a clearly labelled simulated traffic layer; connected workspaces draw only visits whose evidence may be displayed and never simulate traffic. See the [operations and release runbook](docs/runbooks/operations-release.md) for database/API setup and the [free-first stack](docs/runbooks/free-first-stack.md) for provider decisions. The default preview needs no credentials and sends no notifications.
 
 Additional operator commands require migrations through `0010` and never activate production:
 

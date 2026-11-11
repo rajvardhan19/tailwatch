@@ -7,7 +7,7 @@ uv sync --locked
 uv run --locked uvicorn tailwatch.product.server:app --host 127.0.0.1 --port 8765
 ```
 
-Open http://127.0.0.1:8765. Without `TAILWATCH_DATABASE_URL`, the dashboard is a clearly labeled synthetic demo. With a PostgreSQL URL, apply `uv run --locked alembic upgrade head` first and provision a tenant/customer key through an operator session. Keys stay in browser memory, never URLs or local storage. The dashboard supports evidence/history, filtering and watchlists; no real predictive result is fabricated. The Dockerfile serves the same app as a non-root user. `render.yaml` prepares a free demo deployment; no account has been provisioned and no deployment is active.
+Open http://127.0.0.1:8765. Without `TAILWATCH_DATABASE_URL`, the dashboard is a clearly labeled synthetic demo. With a PostgreSQL URL, apply `uv run --locked alembic upgrade head` first and provision a tenant/customer key through an operator session. Keys stay in browser memory, never URLs or local storage. The research terminal shows an evidence globe, per-signal conditions and gates, filtering, watchlists and evidence/history. The globe draws only `public.visits` locations, which drafts include only for completed visits whose evidence passed display review. In demo mode a simulated traffic layer is labelled as such; connected workspaces never simulate traffic. Motion pauses on request and stays off under reduced-motion settings. No real predictive result is fabricated. The Dockerfile serves the same app as a non-root user. `render.yaml` prepares a free demo deployment; no account has been provisioned and no deployment is active.
 
 ## Readiness and scheduling
 
