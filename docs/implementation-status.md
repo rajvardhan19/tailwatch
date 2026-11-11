@@ -53,3 +53,7 @@ This completes the software roadmap. It does not satisfy any gate. G0–G5 still
 ## Live research feeds — November 11, 2026
 
 The terminal can now stream real data in research mode: anonymous, privacy-filtered ADS-B positions around 14 hubs from ADSB.lol, and SEC EDGAR's latest Form 4 filings with as-filed transaction details. Both are authorized against a maintainer-reviewed manifest (`config/sources.live.json`), reserved in durable daily budgets, polled only while viewed, and backed off on provider errors. SEC responses are journaled; air-traffic responses are display-only. These feeds produce no signals, scores or alerts, and they do not establish coverage (G0) or any other gate. See [live research feeds](runbooks/live-research.md).
+
+## Insider-silence backtest — November 11, 2026
+
+`tailwatch backtest` runs a registered, point-in-time backtest of the insider-silence signal on real SEC Form 4 history, for 19 verified acquisition targets (2019–2024) and 38 matched peers. The terminal's Past deals view shows every outcome: flagged deals, misses, false alarms and unscorable cases, with intervals. This tests one signal component on a small, hand-selected sample. It is not a model evaluation and does not satisfy G3. The flight component remains untested until historical flight coverage and reviewed aircraft links exist.

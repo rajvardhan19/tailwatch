@@ -1,0 +1,426 @@
+{
+ "name": "Insider-silence backtest: 19 verified US-listed acquisition targets and 38 matched peers",
+ "registered_at": "2026-11-11T02:33:35Z",
+ "threshold": 0.5,
+ "rationale": "Fixed before any score was computed: flag a company when its habitual insider sellers (at least 4 sale days in the prior year) are, on average, missing at least half an expected sale day in the 45 days before the cutoff. Derived from the signal's units, not from these results. Deals were chosen as large, well-known definitive acquisitions of US-listed targets from 2019-2024, with announcements verified against each target's Item 1.01 8-K; peers are same-sector companies scored on the same date.",
+ "cases": [
+  {
+   "role": "deal",
+   "cik": "0000718877",
+   "name": "Activision Blizzard, Inc.",
+   "label": "Activision Blizzard",
+   "acquirer": "Microsoft",
+   "announced": "2022-01-18"
+  },
+  {
+   "role": "deal",
+   "cik": "0001124610",
+   "name": "VMWARE LLC",
+   "label": "VMware",
+   "acquirer": "Broadcom",
+   "announced": "2022-05-26"
+  },
+  {
+   "role": "deal",
+   "cik": "0001353283",
+   "name": "SPLUNK INC",
+   "label": "Splunk",
+   "acquirer": "Cisco",
+   "announced": "2023-09-21"
+  },
+  {
+   "role": "deal",
+   "cik": "0001038357",
+   "name": "PIONEER NATURAL RESOURCES CO",
+   "label": "Pioneer Natural Resources",
+   "acquirer": "ExxonMobil",
+   "announced": "2023-10-11"
+  },
+  {
+   "role": "deal",
+   "cik": "0000004447",
+   "name": "HESS CORP",
+   "label": "Hess",
+   "acquirer": "Chevron",
+   "announced": "2023-10-23"
+  },
+  {
+   "role": "deal",
+   "cik": "0001060736",
+   "name": "Seagen Inc.",
+   "label": "Seagen",
+   "acquirer": "Pfizer",
+   "announced": "2023-03-13"
+  },
+  {
+   "role": "deal",
+   "cik": "0001492426",
+   "name": "Horizon Therapeutics Public Ltd Co",
+   "label": "Horizon Therapeutics",
+   "acquirer": "Amgen",
+   "announced": "2022-12-12"
+  },
+  {
+   "role": "deal",
+   "cik": "0001043604",
+   "name": "JUNIPER NETWORKS INC",
+   "label": "Juniper Networks",
+   "acquirer": "Hewlett Packard Enterprise",
+   "announced": "2024-01-09"
+  },
+  {
+   "role": "deal",
+   "cik": "0001393612",
+   "name": "Discover Financial Services",
+   "label": "Discover Financial",
+   "acquirer": "Capital One",
+   "announced": "2024-02-19"
+  },
+  {
+   "role": "deal",
+   "cik": "0001002517",
+   "name": "Nuance Communications, Inc.",
+   "label": "Nuance",
+   "acquirer": "Microsoft",
+   "announced": "2021-04-12"
+  },
+  {
+   "role": "deal",
+   "cik": "0000743988",
+   "name": "XILINX INC",
+   "label": "Xilinx",
+   "acquirer": "AMD",
+   "announced": "2020-10-27"
+  },
+  {
+   "role": "deal",
+   "cik": "0000743316",
+   "name": "MAXIM INTEGRATED PRODUCTS INC",
+   "label": "Maxim Integrated",
+   "acquirer": "Analog Devices",
+   "announced": "2020-07-13"
+  },
+  {
+   "role": "deal",
+   "cik": "0000054480",
+   "name": "KANSAS CITY SOUTHERN",
+   "label": "Kansas City Southern",
+   "acquirer": "Canadian Pacific",
+   "announced": "2021-03-21"
+  },
+  {
+   "role": "deal",
+   "cik": "0000773910",
+   "name": "ANADARKO PETROLEUM CORP",
+   "label": "Anadarko Petroleum",
+   "acquirer": "Chevron",
+   "announced": "2019-04-12"
+  },
+  {
+   "role": "deal",
+   "cik": "0001013462",
+   "name": "ANSYS INC",
+   "label": "Ansys",
+   "acquirer": "Synopsys",
+   "announced": "2024-01-16"
+  },
+  {
+   "role": "deal",
+   "cik": "0001596783",
+   "name": "Catalent, Inc.",
+   "label": "Catalent",
+   "acquirer": "Novo Holdings",
+   "announced": "2024-02-05"
+  },
+  {
+   "role": "deal",
+   "cik": "0001163302",
+   "name": "UNITED STATES STEEL CORP",
+   "label": "U.S. Steel",
+   "acquirer": "Nippon Steel",
+   "announced": "2023-12-18"
+  },
+  {
+   "role": "deal",
+   "cik": "0000101778",
+   "name": "MARATHON OIL CORP",
+   "label": "Marathon Oil",
+   "acquirer": "ConocoPhillips",
+   "announced": "2024-05-29"
+  },
+  {
+   "role": "deal",
+   "cik": "0001498710",
+   "name": "Spirit Aviation Holdings, Inc.",
+   "label": "Spirit Airlines",
+   "acquirer": "Frontier Group",
+   "announced": "2022-02-07"
+  },
+  {
+   "role": "control",
+   "cik": "0000712515",
+   "name": "ELECTRONIC ARTS INC.",
+   "label": "Electronic Arts",
+   "matched_to": "0000718877"
+  },
+  {
+   "role": "control",
+   "cik": "0000946581",
+   "name": "TAKE TWO INTERACTIVE SOFTWARE INC",
+   "label": "Take-Two Interactive",
+   "matched_to": "0000718877"
+  },
+  {
+   "role": "control",
+   "cik": "0001373715",
+   "name": "ServiceNow, Inc.",
+   "label": "ServiceNow",
+   "matched_to": "0001124610"
+  },
+  {
+   "role": "control",
+   "cik": "0000769397",
+   "name": "Autodesk, Inc.",
+   "label": "Autodesk",
+   "matched_to": "0001124610"
+  },
+  {
+   "role": "control",
+   "cik": "0001561550",
+   "name": "Datadog, Inc.",
+   "label": "Datadog",
+   "matched_to": "0001353283"
+  },
+  {
+   "role": "control",
+   "cik": "0001327567",
+   "name": "Palo Alto Networks Inc",
+   "label": "Palo Alto Networks",
+   "matched_to": "0001353283"
+  },
+  {
+   "role": "control",
+   "cik": "0001090012",
+   "name": "DEVON ENERGY CORP/DE",
+   "label": "Devon Energy",
+   "matched_to": "0001038357"
+  },
+  {
+   "role": "control",
+   "cik": "0001539838",
+   "name": "Diamondback Energy, Inc.",
+   "label": "Diamondback Energy",
+   "matched_to": "0001038357"
+  },
+  {
+   "role": "control",
+   "cik": "0001163165",
+   "name": "CONOCOPHILLIPS",
+   "label": "ConocoPhillips",
+   "matched_to": "0000004447"
+  },
+  {
+   "role": "control",
+   "cik": "0000821189",
+   "name": "EOG RESOURCES INC",
+   "label": "EOG Resources",
+   "matched_to": "0000004447"
+  },
+  {
+   "role": "control",
+   "cik": "0001048477",
+   "name": "BIOMARIN PHARMACEUTICAL INC",
+   "label": "BioMarin",
+   "matched_to": "0001060736"
+  },
+  {
+   "role": "control",
+   "cik": "0000879169",
+   "name": "INCYTE CORP",
+   "label": "Incyte",
+   "matched_to": "0001060736"
+  },
+  {
+   "role": "control",
+   "cik": "0001232524",
+   "name": "Jazz Pharmaceuticals plc",
+   "label": "Jazz Pharmaceuticals",
+   "matched_to": "0001492426"
+  },
+  {
+   "role": "control",
+   "cik": "0001082554",
+   "name": "UNITED THERAPEUTICS Corp",
+   "label": "United Therapeutics",
+   "matched_to": "0001492426"
+  },
+  {
+   "role": "control",
+   "cik": "0001596532",
+   "name": "Arista Networks, Inc.",
+   "label": "Arista Networks",
+   "matched_to": "0001043604"
+  },
+  {
+   "role": "control",
+   "cik": "0001048695",
+   "name": "F5, INC.",
+   "label": "F5",
+   "matched_to": "0001043604"
+  },
+  {
+   "role": "control",
+   "cik": "0001601712",
+   "name": "Synchrony Financial",
+   "label": "Synchrony",
+   "matched_to": "0001393612"
+  },
+  {
+   "role": "control",
+   "cik": "0000004962",
+   "name": "AMERICAN EXPRESS CO",
+   "label": "American Express",
+   "matched_to": "0001393612"
+  },
+  {
+   "role": "control",
+   "cik": "0000813672",
+   "name": "CADENCE DESIGN SYSTEMS INC",
+   "label": "Cadence",
+   "matched_to": "0001002517"
+  },
+  {
+   "role": "control",
+   "cik": "0000857005",
+   "name": "PTC INC.",
+   "label": "PTC",
+   "matched_to": "0001002517"
+  },
+  {
+   "role": "control",
+   "cik": "0000855658",
+   "name": "LATTICE SEMICONDUCTOR CORP",
+   "label": "Lattice Semiconductor",
+   "matched_to": "0000743988"
+  },
+  {
+   "role": "control",
+   "cik": "0000827054",
+   "name": "MICROCHIP TECHNOLOGY INC",
+   "label": "Microchip",
+   "matched_to": "0000743988"
+  },
+  {
+   "role": "control",
+   "cik": "0000827054",
+   "name": "MICROCHIP TECHNOLOGY INC",
+   "label": "Microchip",
+   "matched_to": "0000743316"
+  },
+  {
+   "role": "control",
+   "cik": "0001097864",
+   "name": "ON SEMICONDUCTOR CORP",
+   "label": "onsemi",
+   "matched_to": "0000743316"
+  },
+  {
+   "role": "control",
+   "cik": "0000100885",
+   "name": "UNION PACIFIC CORP",
+   "label": "Union Pacific",
+   "matched_to": "0000054480"
+  },
+  {
+   "role": "control",
+   "cik": "0000277948",
+   "name": "CSX CORP",
+   "label": "CSX",
+   "matched_to": "0000054480"
+  },
+  {
+   "role": "control",
+   "cik": "0001090012",
+   "name": "DEVON ENERGY CORP/DE",
+   "label": "Devon Energy",
+   "matched_to": "0000773910"
+  },
+  {
+   "role": "control",
+   "cik": "0000006769",
+   "name": "APACHE CORP",
+   "label": "Apache",
+   "matched_to": "0000773910"
+  },
+  {
+   "role": "control",
+   "cik": "0000813672",
+   "name": "CADENCE DESIGN SYSTEMS INC",
+   "label": "Cadence",
+   "matched_to": "0001013462"
+  },
+  {
+   "role": "control",
+   "cik": "0000857005",
+   "name": "PTC INC.",
+   "label": "PTC",
+   "matched_to": "0001013462"
+  },
+  {
+   "role": "control",
+   "cik": "0001100682",
+   "name": "CHARLES RIVER LABORATORIES INTERNATIONAL, INC.",
+   "label": "Charles River",
+   "matched_to": "0001596783"
+  },
+  {
+   "role": "control",
+   "cik": "0000105770",
+   "name": "WEST PHARMACEUTICAL SERVICES INC",
+   "label": "West Pharmaceutical",
+   "matched_to": "0001596783"
+  },
+  {
+   "role": "control",
+   "cik": "0000073309",
+   "name": "NUCOR CORP",
+   "label": "Nucor",
+   "matched_to": "0001163302"
+  },
+  {
+   "role": "control",
+   "cik": "0001022671",
+   "name": "STEEL DYNAMICS INC",
+   "label": "Steel Dynamics",
+   "matched_to": "0001163302"
+  },
+  {
+   "role": "control",
+   "cik": "0001841666",
+   "name": "APA Corp",
+   "label": "APA",
+   "matched_to": "0000101778"
+  },
+  {
+   "role": "control",
+   "cik": "0001792580",
+   "name": "Ovintiv Inc.",
+   "label": "Ovintiv",
+   "matched_to": "0000101778"
+  },
+  {
+   "role": "control",
+   "cik": "0000766421",
+   "name": "ALASKA AIR GROUP, INC.",
+   "label": "Alaska Air",
+   "matched_to": "0001498710"
+  },
+  {
+   "role": "control",
+   "cik": "0001362468",
+   "name": "Allegiant Travel CO",
+   "label": "Allegiant",
+   "matched_to": "0001498710"
+  }
+ ]
+}

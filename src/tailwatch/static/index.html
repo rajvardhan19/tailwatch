@@ -24,6 +24,7 @@
   <button class="nav active" type="button" data-view="all" aria-current="page"><span aria-hidden="true">◈</span><span>Desk</span></button>
   <button class="nav" type="button" data-view="watchlist"><span aria-hidden="true">☆</span><span>Watchlist</span></button>
   <button class="nav" type="button" data-view="track"><span aria-hidden="true">↗</span><span>Track record</span></button>
+  <button class="nav" type="button" data-view="backtest"><span aria-hidden="true">◷</span><span>Past deals</span></button>
 </nav>
 <main id="main">
   <div class="notice" role="note"><span class="notice-icon" aria-hidden="true">!</span><p id="notice">Fictional companies and synthetic observations. Simulated traffic is not real aircraft. No predictive model is active, and nothing here is an investment recommendation.</p></div>
@@ -40,13 +41,19 @@
     <figure class="panel globe-panel" aria-labelledby="globe-title">
       <div class="panel-head">
         <h2 id="globe-title"><span class="eyebrow">EVIDENCE GLOBE</span>Completed visits behind reviewed signals</h2>
+        <div class="globe-tools">
+        <div class="segmented" role="group" aria-label="Zoom">
+          <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
+          <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+        </div>
         <div class="segmented" role="group" aria-label="Globe display">
           <button type="button" id="view-globe" aria-pressed="true">Globe</button>
           <button type="button" id="view-list" aria-pressed="false">List</button>
         </div>
+        </div>
       </div>
       <div class="globe-stage" id="globe-stage">
-        <canvas id="globe" tabindex="0" role="img" aria-label="Globe of completed visits behind reviewed signals. Arrow keys rotate it. The List view gives the same information as text."></canvas>
+        <canvas id="globe" tabindex="0" role="img" aria-label="Globe of completed visits behind reviewed signals and, when enabled, anonymous live air traffic. Drag or use arrow keys to rotate, the mouse wheel or plus and minus keys to zoom. The List view gives the visits as text."></canvas>
         <div class="globe-tooltip" id="globe-tooltip" hidden></div>
         <p class="hud" aria-hidden="true"><span id="hud-view">LON 000.0° LAT 00.0°</span><span id="hud-arcs">0 VISITS</span></p>
       </div>
@@ -94,6 +101,14 @@
     <div id="track" hidden>
       <div class="empty"><h3>A track record starts with time.</h3><p>Definitive outcomes need 180 days of follow-up and complete label coverage. Pending examples are never counted as failures.</p><p>No validated precision, returns or win rate is available.</p></div>
     </div>
+  </section>
+
+  <section class="panel backtest" id="backtest-panel" aria-labelledby="backtest-title" hidden>
+    <div class="panel-head">
+      <h2 id="backtest-title"><span class="eyebrow">PAST DEALS · RESEARCH BACKTEST</span><span id="backtest-heading">Insider silence before verified acquisitions</span></h2>
+      <p class="panel-meta" id="backtest-meta"></p>
+    </div>
+    <div class="backtest-body" id="backtest-body"><p class="empty">Loading backtest…</p></div>
   </section>
 
   <section class="tape" aria-labelledby="tape-title">

@@ -27,3 +27,23 @@ For a promotable sealed result, commit the full test `Example` records (features
 Legacy score-only evaluation remains available for diagnostics, but an otherwise passing result becomes INCONCLUSIVE without verified model/data provenance. Production release validation independently requires `provenance_verified=true`. This proves consistency between submitted artifacts, not that a dataset is complete, licensed, unbiased, or independently held; G0/G3 review still has to establish those facts. Do not use sealed test data to select ablations or bootstrap settings.
 
 `tailwatch research-report INPUT.json --objects DIRECTORY` accepts the `ReportInput` contract: experiment, train/calibration examples, full expected episode IDs, primary feature names, declared ablation variants, fitted-at cutoff and a fixed reference vector. It rejects threshold/test observations, retains canonical input and report objects, and prints only the report digest and non-promotion flag. Use `inspect-trace FILE --icao REVIEWED_HEX --available-at TIMESTAMP --objects DIRECTORY` to inspect a local authorized trace without fetching network data or inventing coverage.
+
+## Insider-silence backtest (Past deals)
+
+`tailwatch backtest config/backtest.insider-silence.json --manifest config/sources.backtest.json --source sec-backtest --objects .data/sec-objects --output src/tailwatch/static/backtest.json` runs a point-in-time research backtest of the insider-silence component on real SEC data. It needs `TAILWATCH_DATABASE_URL`, for the durable budget and journal, and `TAILWATCH_SEC_USER_AGENT`. It takes the single SEC worker lock, so the live filings feed pauses while it runs. Every response is journaled in `sec_fetches` and the object store.
+
+- **Registered first.** The config fixes the threshold, windows and every case before any score exists. Its digest is written into the report, and a test checks that the committed report matches the registered config.
+- **Deals.** Each is verified against the target's own filings: an Item 1.01 8-K within 10 days of the expected date. The announcement date is the earliest of that date and any nearby 8-K or 425 filing. Unverified deals are excluded, never scored.
+- **Point in time.** Each case is scored with `features.signals.silence` as of two days before the announcement, using only Form 4s *filed* before that day. The observation watermark sits two business days earlier still. The recent window is 45 days; the baseline is the 365 days before it.
+- **What counts as a sale.** Non-derivative code S trade days by reporting owners flagged director or officer. Habitual sellers need at least four baseline sale days; companies without any are reported as insufficient history.
+- **Controls.** Same-sector peers are scored on the matched deal's date. Peers that file merger-target forms (proxy statements or tender responses) within 180 days are excluded.
+- **Reporting.** The Past deals view and the report list successes, misses, false alarms and unscorable cases, with Wilson intervals and a hit-rate ÷ false-alarm-rate lift.
+
+**Limitations.**
+- Only insider silence is tested. The flight component needs historical flight coverage and reviewed company-aircraft links, so it is reported unavailable.
+- The deal sample is small and hand-selected, so it is not representative.
+- 10b5-1 plan status is unknown before April 2023 and is not excluded.
+- Blackout periods are not modelled, and weekdays approximate trading days.
+- The peer exclusion cannot tell a target proxy from an acquirer proxy, so a peer that files a merger proxy as an acquirer is also dropped (conservative). In the first run this removed Diamondback Energy.
+- A case whose filings cannot all be retrieved is reported as missing source rather than scored on partial data. In the first run, transient connection failures left Cadence (April 2021) unscored.
+- This is research evidence about one signal. It is not a validated model, a sealed evaluation or release-gate evidence. Changing the threshold after seeing these results would make any rerun exploratory, and it must be labelled as such.

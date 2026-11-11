@@ -141,6 +141,7 @@ main { grid-row: 2; min-width: 0; padding: 18px 24px 28px; display: grid; grid-t
 }
 .globe-tooltip strong { font-size: 13px; color: var(--ink); }
 .globe-tooltip span { color: var(--ink-2); font-family: var(--mono); font-size: 11px; }
+.globe-tools { display: flex; gap: 8px; }
 .segmented { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 4px; overflow: hidden; }
 .segmented button { border: 0; background: none; padding: 5px 12px; font-size: 12px; color: var(--ink-2); }
 .segmented button[aria-pressed="true"] { background: var(--accent-wash); color: var(--ink); }
@@ -157,6 +158,33 @@ main { grid-row: 2; min-width: 0; padding: 18px 24px 28px; display: grid; grid-t
 .key-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); opacity: 0.8; }
 .key-dot.live { width: 8px; height: 8px; border-radius: 2px; background: var(--live); opacity: 1; }
 .live-tile .tile-value { color: var(--ink); }
+
+/* Past deals backtest */
+.backtest-body { padding: 0 18px 18px; display: grid; gap: 16px; }
+.backtest-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.backtest-tiles .tile { background: var(--raised); }
+.caveats { margin: 0; padding: 12px 14px; border: 1px solid rgba(250, 178, 25, 0.35); border-radius: 6px; background: rgba(250, 178, 25, 0.05); color: var(--ink-2); font-size: 12.5px; }
+.caveats ul { margin: 6px 0 0; padding-left: 18px; }
+.dotplot { width: 100%; height: auto; display: block; }
+.dotplot text { font-family: var(--mono); font-size: 11px; fill: var(--muted); }
+.dotplot .row-label { fill: var(--ink-2); font-family: var(--sans); font-size: 12px; }
+.dotplot circle { cursor: default; }
+.dotplot circle:focus { outline: none; stroke: var(--ink); stroke-width: 2; }
+.subgroup { margin: 4px 0 0; font-size: 12px; font-family: var(--mono); letter-spacing: 0.08em; color: var(--muted); text-transform: uppercase; }
+.deal-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.deal-card { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--raised); }
+.deal-card.success { border-color: rgba(12, 163, 12, 0.55); box-shadow: inset 3px 0 0 var(--good); }
+.deal-card h4 { margin: 0; font-size: 15px; }
+.deal-card h4 .arrow { color: var(--accent); margin: 0 4px; }
+.deal-card p { margin: 0; color: var(--ink-2); font-size: 12.5px; }
+.deal-card a { color: var(--ink-2); font-size: 12px; }
+.meter { position: relative; height: 8px; border-radius: 4px; background: rgba(57, 135, 229, 0.18); }
+.meter .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--accent); }
+.meter .mark { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--ink-2); }
+.peer-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.peer-table th, .peer-table td { padding: 7px 8px 7px 0; text-align: left; border-bottom: 1px solid var(--grid); }
+.peer-table thead th { font-weight: 500; color: var(--muted); font-size: 11px; }
+.peer-table td.numeric { text-align: right; }
 
 /* Live SEC filings */
 .panel-meta { margin: 0; font-family: var(--mono); font-size: 11.5px; color: var(--muted); text-align: right; }

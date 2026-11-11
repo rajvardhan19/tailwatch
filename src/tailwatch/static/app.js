@@ -101,7 +101,8 @@ let focused;
 const state = {
   demo: true, key: '', items: [], watch: new Set(), view: 'all', cursor: null,
   selected: null, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches, listView: false,
-  live: { available: false, traffic: false, filings: false }, traffic: null, filings: null, timers: [],
+  live: { available: false, traffic: false, filings: false, open: false }, traffic: null, filings: null,
+  timers: [], centred: false, backtest: null,
 };
 const LIVE_NOTICE = 'Live research feeds: real ADS-B air traffic (anonymous, privacy-filtered) and the latest SEC Form 4 filings. No predictions are made; reviewed signals appear only when the gated pipeline produces them.';
 const nyTime = value => {
@@ -397,7 +398,7 @@ function render() {
   $('#model-note').textContent = state.demo ? 'Sealed evaluation required' : 'Real alerts need the active release model';
   $('#delivery-status').textContent = state.demo ? 'Disabled' : 'Operator managed';
   $('#delivery-note').textContent = state.demo ? 'No external notifications' : 'Verified subscriptions required';
-  const titles = { all: ['SIGNAL DESK', 'Reviewed signals'], watchlist: ['WATCHLIST', 'Your watched companies'], track: ['TRACK RECORD', 'Original predictions and outcomes'] };
+  const titles = { all: ['SIGNAL DESK', 'Reviewed signals'], watchlist: ['WATCHLIST', 'Your watched companies'], track: ['TRACK RECORD', 'Original predictions and outcomes'], backtest: ['SIGNAL DESK', 'Reviewed signals'] };
   [$('#view-label').textContent, $('#section-title').textContent] = titles[state.view];
   $('#track').hidden = state.view !== 'track' || !state.demo;
   $('#cards').hidden = state.view === 'track' && state.demo;
@@ -405,7 +406,12 @@ function render() {
   $('#legend-simulated').hidden = !state.demo;
   $('#legend-live').hidden = !(state.traffic?.enabled && !state.demo);
   $('#live-tile').hidden = state.demo || !state.live.available;
-  $('#filings-panel').hidden = state.demo || !state.live.filings || !state.key;
+  const pastDeals = state.view === 'backtest';
+  $('#filings-panel').hidden = pastDeals || state.demo || !state.live.filings || !(state.key || state.live.open);
+  document.querySelector('.deck').hidden = pastDeals;
+  document.querySelector('.blotter').hidden = pastDeals;
+  $('#backtest-panel').hidden = !pastDeals;
+  if (pastDeals) renderBacktest();
   const scale = Math.max(0.001, ...state.items.flatMap(item => Object.values(item.public?.contributions || {}).map(v => Math.abs(number(v) ?? 0))));
   renderRows(state.view === 'track' && state.demo ? [] : items);
   renderGlobe(items);
@@ -465,15 +471,18 @@ function renderLive() {
   const traffic = state.traffic;
   const filings = state.filings;
   const parts = [];
-  if (traffic) parts.push(`${traffic.hubs.length} hubs reporting`);
+  if (traffic) parts.push(`${traffic.hubs.length}/${traffic.hub_total} hubs reporting`);
   if (filings) parts.push(`${filings.filings.length} Form 4 filings`);
   $('#live-value').textContent = traffic ? `${traffic.aircraft.length.toLocaleString()} aircraft` : filings ? 'SEC only' : 'Connecting…';
   $('#live-note').textContent = parts.join(' · ') || 'Waiting for the first poll';
   if (traffic) {
     const arcs = $('#hud-arcs').textContent.split(' · ')[0];
     $('#hud-arcs').textContent = `${arcs} · ${traffic.aircraft.length.toLocaleString()} AIRCRAFT`;
-    const health = traffic.status === 'live' ? '' : ` Air feed ${traffic.status.replaceAll('_', ' ')}; showing the last fresh data.`;
-    $('#globe-note').textContent = `${traffic.source}. ${traffic.coverage}; ${traffic.privacy}.${health}`;
+    const loading = traffic.hubs.length < traffic.hub_total ? ` Loading live traffic: ${traffic.hubs.length}/${traffic.hub_total} hubs so far.` : '';
+    const reason = traffic.detail ? ` (${traffic.detail})` : '';
+    const health = traffic.status === 'live' || traffic.status === 'idle' ? `${loading}${traffic.detail ? ` ${traffic.detail}.` : ''}` : ` Air feed ${traffic.status.replaceAll('_', ' ')}${reason}; showing the last fresh data.`;
+    const quota = traffic.provider_quota ? ` Provider quota left today: ${traffic.provider_quota.remaining}/${traffic.provider_quota.limit}.` : '';
+    $('#globe-note').textContent = `${traffic.source}. ${traffic.coverage}; ${traffic.privacy}. Refresh: ${traffic.refresh}.${health}${quota}`;
   }
   renderFilings();
 }
@@ -521,6 +530,11 @@ async function pollTraffic() {
     const data = await api('/live/traffic');
     state.traffic = data;
     globe.setLive(data.aircraft, Date.now());
+    if (!state.centred && data.aircraft.length) {
+      // Start where most covered traffic is; the user can rotate and zoom anywhere.
+      state.centred = true;
+      globe.setView({ lon: -86, lat: 38, zoom: 2.3 });
+    }
     render();
     renderLive();
   } catch (error) {
@@ -541,6 +555,7 @@ async function pollFilings() {
 function stopLive() {
   for (const timer of state.timers) clearInterval(timer);
   state.timers = [];
+  state.centred = false;
   state.traffic = null;
   state.filings = null;
   globe.setLive([], Date.now());
@@ -558,7 +573,179 @@ function startLive() {
   }
 }
 
+// ----- past deals (research backtest) ---------------------------------------
+
+async function loadBacktest() {
+  try {
+    const response = await fetch('/assets/backtest.json');
+    state.backtest = response.ok ? await response.json() : { error: 'No backtest report has been generated yet.' };
+  } catch {
+    state.backtest = { error: 'The backtest report could not be loaded.' };
+  }
+  if (state.view === 'backtest') render();
+}
+
+const percent = value => (typeof value === 'number' ? `${Math.round(value * 100)}%` : '—');
+const interval = range => (Array.isArray(range) ? `95% CI ${percent(range[0])}–${percent(range[1])}` : 'no interval');
+
+function svg(tag, attributes = {}) {
+  const element = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [name, value] of Object.entries(attributes)) element.setAttribute(name, String(value));
+  return element;
+}
+
+function dotPlot(report, scored) {
+  // One shared axis; deal targets emphasised, peers recessive; threshold as a reference line.
+  // Drawn at the container width so text keeps its intended size.
+  const width = Math.max(480, Math.round($('#backtest-body').clientWidth || 820)), height = 150, left = 120, right = 24;
+  const max = Math.max(report.threshold * 2, ...scored.map(r => r.value));
+  const x = value => left + (value / max) * (width - left - right);
+  const plot = svg('svg', { viewBox: `0 0 ${width} ${height}`, class: 'dotplot', role: 'img', 'aria-label': 'Insider silence values for scored deal targets and matched peers, with the pre-registered threshold. The cards and table below list every value.' });
+  plot.append(svg('line', { x1: left, x2: width - right, y1: 118, y2: 118, stroke: 'var(--axis)' }));
+  for (let i = 0; i <= 4; i += 1) {
+    const value = (max * i) / 4;
+    const tick = svg('text', { x: x(value), y: 136, 'text-anchor': 'middle' });
+    tick.textContent = value.toFixed(2);
+    plot.append(tick);
+  }
+  const threshold = svg('line', { x1: x(report.threshold), x2: x(report.threshold), y1: 18, y2: 118, stroke: 'var(--ink-2)', 'stroke-width': 1.5 });
+  const thresholdLabel = svg('text', { x: x(report.threshold) + 6, y: 14 });
+  thresholdLabel.textContent = `threshold ${report.threshold}`;
+  plot.append(threshold, thresholdLabel);
+  const rows = [['deal', 'Deal targets', 44, 'var(--accent)'], ['control', 'Matched peers', 92, 'var(--muted)']];
+  for (const [role, label, y, colour] of rows) {
+    const name = svg('text', { x: 0, y: y + 4, class: 'row-label' });
+    name.textContent = label;
+    plot.append(name);
+    scored.filter(r => r.role === role).forEach((r, index) => {
+      const dot = svg('circle', { cx: x(r.value), cy: y + ((index % 5) - 2) * 4, r: 5, fill: colour, stroke: 'var(--surface)', 'stroke-width': 2, tabindex: 0, 'aria-label': `${r.label}: ${r.value.toFixed(3)}` });
+      const title = svg('title');
+      title.textContent = `${r.label} · ${r.value.toFixed(3)}${r.flagged ? ' · flagged' : ''}`;
+      dot.append(title);
+      plot.append(dot);
+    });
+  }
+  return plot;
+}
+
+function dealCard(r, threshold) {
+  const card = node('article', undefined, `deal-card${r.flagged ? ' success' : ''}`);
+  const heading = node('h4');
+  heading.append(node('span', r.label), node('span', '→', 'arrow'), node('span', r.acquirer || 'acquirer'));
+  card.append(heading);
+  const verdict = r.excluded ? ['○', `Excluded: ${r.excluded}`, 'muted']
+    : r.status !== 'observed' ? ['○', `Not scorable: ${String(r.status).replaceAll('_', ' ')}`, 'muted']
+    : r.flagged ? ['✓', 'Flagged before announcement', 'good'] : ['○', 'Not flagged (miss)', 'muted'];
+  card.append(chip(verdict));
+  if (r.status === 'observed') {
+    const meter = node('div', undefined, 'meter');
+    meter.setAttribute('aria-hidden', 'true');
+    const scale = Math.max(threshold * 2, r.value);
+    const fill = node('span', undefined, 'fill');
+    fill.style.width = `${Math.min(100, (r.value / scale) * 100)}%`;
+    const mark = node('span', undefined, 'mark');
+    mark.style.left = `${(threshold / scale) * 100}%`;
+    meter.append(fill, mark);
+    card.append(meter, node('p', `Silence ${r.value.toFixed(3)} vs threshold ${threshold} · ${r.silent_habitual_sellers} of ${r.habitual_sellers} habitual sellers went quiet`));
+  } else if (!r.excluded) {
+    card.append(node('p', `${r.insiders ?? 0} insiders, ${r.habitual_sellers ?? 0} with enough sale history (≥4 sale days in the prior year).`));
+  }
+  const facts = [];
+  if (r.announced) facts.push(`Announced ${r.announced}`);
+  if (r.cutoff) facts.push(`scored as of ${r.cutoff.slice(0, 10)}`);
+  if (typeof r.form4_filings === 'number') facts.push(`${r.form4_filings} Form 4 filings read`);
+  card.append(node('p', facts.join(' · ')), node('p', `Flight signal: ${r.flight}`));
+  if (r.evidence) {
+    const link = node('a', 'Announcement 8-K on EDGAR ↗');
+    link.href = r.evidence;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    card.append(link);
+  }
+  return card;
+}
+
+function renderBacktest() {
+  const body = $('#backtest-body');
+  const report = state.backtest;
+  body.replaceChildren();
+  if (!report) {
+    body.append(node('p', 'Loading backtest…', 'empty'));
+    loadBacktest();
+    return;
+  }
+  if (report.error) {
+    body.append(node('p', `${report.error} Run: tailwatch backtest config/backtest.insider-silence.json …`, 'empty'));
+    return;
+  }
+  const { summary, results, threshold } = report;
+  $('#backtest-meta').textContent = `registered ${report.registered_at.slice(0, 10)} · generated ${report.generated_at.slice(0, 10)} · config ${report.config_digest.slice(0, 12)}`;
+  const tiles = node('div', undefined, 'backtest-tiles');
+  const tile = (label, value, note) => {
+    const article = node('article', undefined, 'tile');
+    article.append(node('h2', label), node('p', value, 'tile-value'), node('p', note, 'tile-note'));
+    return article;
+  };
+  tiles.append(
+    tile('Deals flagged before announcement', `${summary.deal.flagged} of ${summary.deal.scored}`, `${percent(summary.deal.rate)} · ${interval(summary.deal.rate_interval)}`),
+    tile('Peer false alarms', `${summary.control.flagged} of ${summary.control.scored}`, `${percent(summary.control.rate)} · ${interval(summary.control.rate_interval)}`),
+    tile('Lift (hit rate ÷ false-alarm rate)', typeof summary.lift === 'number' ? `${summary.lift.toFixed(2)}×` : '—', 'Small sample: read with the intervals'),
+    tile('Not scorable or excluded', String(summary.deal.unscorable + summary.deal.excluded + summary.control.unscorable + summary.control.excluded), 'Insufficient insider history or failed checks'),
+  );
+  const caveats = node('div', undefined, 'caveats');
+  caveats.append(node('strong', `Threshold ${threshold} was registered before any score was computed. Misses and false alarms are shown alongside successes.`));
+  const list = node('ul');
+  for (const item of report.limitations) list.append(node('li', item));
+  caveats.append(list);
+  body.append(tiles, caveats);
+  const scored = results.filter(r => r.status === 'observed' && typeof r.value === 'number');
+  if (scored.length) body.append(dotPlot(report, scored));
+  const deals = results.filter(r => r.role === 'deal');
+  const groups = [
+    ['Flagged before announcement', deals.filter(r => r.flagged)],
+    ['Missed (below threshold)', deals.filter(r => r.status === 'observed' && !r.flagged)],
+    ['Not scorable or excluded', deals.filter(r => r.status !== 'observed')],
+  ];
+  for (const [title, members] of groups) {
+    if (!members.length) continue;
+    body.append(node('h3', `${title} · ${members.length}`, 'subgroup'));
+    const cards = node('div', undefined, 'deal-cards');
+    for (const r of members.sort((a, b) => (b.value ?? -1) - (a.value ?? -1))) cards.append(dealCard(r, threshold));
+    body.append(cards);
+  }
+  body.append(node('h3', `Matched peers (no deal within 180 days) · ${results.filter(r => r.role === 'control').length}`, 'subgroup'));
+  const table = node('table', undefined, 'peer-table');
+  const head = node('tr');
+  for (const title of ['Peer', 'Matched deal', 'Scored as of', 'Silence', 'Result']) head.append(node('th', title));
+  const thead = node('thead');
+  thead.append(head);
+  const tbody = node('tbody');
+  const dealNames = Object.fromEntries(deals.map(d => [d.cik, d.label]));
+  for (const r of results.filter(r => r.role === 'control')) {
+    const row = node('tr');
+    const result = node('td');
+    result.append(chip(r.excluded ? ['○', `Excluded: ${r.excluded}`, 'muted']
+      : r.status !== 'observed' ? ['○', String(r.status).replaceAll('_', ' '), 'muted']
+      : r.flagged ? ['▲', 'False alarm', 'warning'] : ['✓', 'Correctly not flagged', 'good']));
+    row.append(
+      node('td', r.label),
+      node('td', dealNames[r.matched_to] || r.matched_to),
+      node('td', r.as_of_deal_date || '—'),
+      node('td', typeof r.value === 'number' ? r.value.toFixed(3) : '—', 'numeric'),
+      result,
+    );
+    tbody.append(row);
+  }
+  table.append(thead, tbody);
+  body.append(table);
+}
+
 async function refresh(append = false) {
+  if (!state.demo && !state.key) {
+    // Key-free local live view: nothing tenant-scoped to fetch.
+    render();
+    return;
+  }
   try {
     if (state.demo) {
       state.items = structuredClone(SAMPLES);
@@ -620,6 +807,8 @@ $('#load-more').addEventListener('click', () => refresh(true));
 $('#motion').addEventListener('click', () => setMotion(!state.motion));
 $('#view-globe').addEventListener('click', () => setListView(false));
 $('#view-list').addEventListener('click', () => setListView(true));
+$('#zoom-in').addEventListener('click', () => globe.zoomBy(1.4));
+$('#zoom-out').addEventListener('click', () => globe.zoomBy(1 / 1.4));
 $('#open-evidence').addEventListener('click', () => {
   const item = state.items.find(entry => entry.episode_id === state.selected);
   if (item) openDetail(item);
@@ -660,7 +849,7 @@ async function boot() {
   try {
     const response = await fetch('/live/status');
     const data = response.ok ? await response.json() : {};
-    if (data.enabled) state.live = { available: true, traffic: Boolean(data.traffic), filings: Boolean(data.filings) };
+    if (data.enabled) state.live = { available: true, traffic: Boolean(data.traffic), filings: Boolean(data.filings), open: Boolean(data.open) };
   } catch {
     // Synthetic preview servers have no live routes.
   }
@@ -670,6 +859,14 @@ async function boot() {
   }
   Object.assign(state, { demo: false, items: [] });
   globe.setTraffic(false);
+  if (state.live.open) {
+    // Local view: live research feeds render immediately; a key adds signals and watchlist.
+    $('#mode').textContent = 'LIVE RESEARCH · LOCAL VIEW';
+    $('#notice').textContent = `${LIVE_NOTICE} Connect a key to see reviewed signals and your watchlist.`;
+    render();
+    startLive();
+    return;
+  }
   $('#mode').textContent = 'LIVE SERVER · CONNECT';
   $('#notice').textContent = 'This server streams live research feeds: real ADS-B air traffic and SEC Form 4 filings. Connect with your API key to view them. Nothing here is a prediction.';
   $('#connect-note').textContent = 'This server runs live research feeds. Connect with a customer or analyst API key to view air traffic and SEC filings. The key stays in memory only.';

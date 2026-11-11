@@ -92,6 +92,14 @@ def add_commands(commands: argparse._SubParsersAction) -> None:  # type: ignore[
     resolve.add_argument("--actor", required=True)
     resolve.add_argument("--evidence", required=True, help="where the outcome was confirmed")
     resolve.add_argument("--provider-id")
+    backtest = commands.add_parser(
+        "backtest", help="run the registered insider-silence backtest on real SEC filings"
+    )
+    backtest.add_argument("config", type=Path)
+    backtest.add_argument("--manifest", type=Path, required=True)
+    backtest.add_argument("--source", required=True)
+    backtest.add_argument("--objects", type=Path, required=True)
+    backtest.add_argument("--output", type=Path, required=True)
 
 
 def load_run(path: Path) -> FeatureRun:
@@ -314,6 +322,60 @@ def _resolve(engine: Engine, args: argparse.Namespace) -> dict[str, object]:
     return {"delivery_id": str(args.delivery), "state": args.state}
 
 
+def _backtest(engine: Engine, args: argparse.Namespace) -> dict[str, object]:
+    import sys
+
+    from sqlalchemy import text
+
+    from tailwatch.operations.runtime import DurableBudget
+    from tailwatch.product.live import SEC_WORKER_LOCK
+    from tailwatch.research.backtest import BacktestConfig, run_backtest
+    from tailwatch.sources.objects import LocalObjectStore
+    from tailwatch.sources.policy import Mode, load_manifest
+    from tailwatch.sources.sec.client import HTTPTransport, SECClient
+    from tailwatch.sources.sec.ingest import SECJournal
+
+    agent = os.environ.get("TAILWATCH_SEC_USER_AGENT")
+    if not agent:
+        raise ValueError("TAILWATCH_SEC_USER_AGENT is required")
+    config = BacktestConfig.model_validate_json(args.config.read_bytes())
+    source = next(s for s in load_manifest(args.manifest).sources if s.source_id == args.source)
+    store = LocalObjectStore(args.objects)
+    with engine.connect() as lock:
+        # Same single SEC worker as capture-sec and the live feed.
+        if not lock.execute(
+            text("SELECT pg_try_advisory_lock(:k)"), {"k": SEC_WORKER_LOCK}
+        ).scalar():
+            raise ValueError("another SEC worker is running")
+        lock.commit()
+        try:
+            day = lock.execute(
+                text("SELECT (clock_timestamp() AT TIME ZONE 'UTC')::date")
+            ).scalar_one()
+            client = SECClient(
+                source=source,
+                mode=Mode.RESEARCH,
+                user_agent=agent,
+                store=store,
+                transport=HTTPTransport(),
+                record=SECJournal(engine, store).record_fetch,
+                budget=DurableBudget(engine, source, day),
+            )
+            report = run_backtest(
+                client,
+                config,
+                progress=lambda line: print(line, file=sys.stderr, flush=True),
+                workers=6,  # ~4-5 req/s observed; the shared limiter caps SEC at 8 req/s
+            )
+        finally:
+            lock.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": SEC_WORKER_LOCK})
+            lock.commit()
+    body = json.dumps(report, sort_keys=True, indent=1, allow_nan=False).encode()
+    digest = store.put(body)
+    args.output.write_bytes(body)
+    return {"report_hash": digest, "output": str(args.output), "summary": report["summary"]}
+
+
 HANDLERS: dict[str, Callable[[Engine, argparse.Namespace], dict[str, object]]] = {
     "draft-alerts": _draft,
     "issue-key": _issue_key,
@@ -324,4 +386,5 @@ HANDLERS: dict[str, Callable[[Engine, argparse.Namespace], dict[str, object]]] =
     "outbox-deliver": _deliver,
     "outbox-reconcile": _reconcile,
     "outbox-resolve": _resolve,
+    "backtest": _backtest,
 }
