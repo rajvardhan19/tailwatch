@@ -14,6 +14,7 @@ from tailwatch import __version__
 from tailwatch.demo import research_demo
 from tailwatch.entities.repository import read_history_fixture
 from tailwatch.operations import commands as operator_commands
+from tailwatch.product import commands as product_commands
 from tailwatch.sources.policy import inventory, load_manifest
 from tailwatch.sources.registry import parse_master
 from tailwatch.sources.sec.form4 import parse_form4
@@ -31,7 +32,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     job.add_argument("--session", type=date.fromisoformat, required=True)
     job.add_argument("--resume", action="store_true")
     onboarding = commands.add_parser(
-        "provision-workspace", help="create local tenant and unverified destination"
+        "provision-workspace", help="create tenant, customer key and queued recipient verification"
     )
     onboarding.add_argument("--name", required=True)
     onboarding.add_argument("--email", required=True)
@@ -39,12 +40,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     report = commands.add_parser("research-report", help="retain offline development diagnostics")
     report.add_argument("path", type=Path)
     report.add_argument("--objects", type=Path, required=True)
+    fit = commands.add_parser(
+        "fit-candidate", help="fit and retain a calibrated candidate; never activates it"
+    )
+    fit.add_argument("path", type=Path, help="validated research input (research-report format)")
+    fit.add_argument("--objects", type=Path, required=True)
+    fit.add_argument("--feature", action="append", dest="features", help="override features")
     trace = commands.add_parser("inspect-trace", help="inspect an already authorized local archive")
     trace.add_argument("path", type=Path)
     trace.add_argument("--icao", required=True)
     trace.add_argument("--available-at", type=datetime.fromisoformat, required=True)
     trace.add_argument("--objects", type=Path, required=True)
     operator_commands.add_commands(commands)
+    product_commands.add_commands(commands)
     sec_capture = commands.add_parser(
         "capture-sec", help="capture bounded live SEC submissions metadata"
     )
@@ -68,9 +76,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     registry.add_argument("path", type=Path)
     registry.add_argument("--observed-at", required=True, type=datetime.fromisoformat)
     args = parser.parse_args(argv)
-    if operator_commands.execute(args, parser):
+    if operator_commands.execute(args, parser) or product_commands.execute(args, parser):
         return 0
-    if args.command in {"research-report", "inspect-trace"}:
+    if args.command in {"research-report", "fit-candidate", "inspect-trace"}:
         from tailwatch.sources.objects import LocalObjectStore
 
         try:
@@ -82,6 +90,30 @@ def main(argv: Sequence[str] | None = None) -> int:
                     ReportInput.model_validate_json(args.path.read_bytes()), store
                 )
                 print(json.dumps({"report_hash": digest, "promotion_allowed": False}))
+            elif args.command == "fit-candidate":
+                from tailwatch.product.scoring import model_digest
+                from tailwatch.research.models import fit_candidate
+                from tailwatch.research.report import ReportInput
+
+                request = ReportInput.model_validate_json(args.path.read_bytes())
+                features = tuple(args.features or request.features)
+                artifact = fit_candidate(
+                    list(request.examples), request.experiment, features, request.fitted_at
+                )
+                digest = store.put(artifact.model_dump_json().encode())
+                if digest != model_digest(artifact):
+                    raise ValueError("retained artifact commitment mismatch")
+                print(
+                    json.dumps(
+                        {
+                            "model_hash": digest,
+                            "features": list(features),
+                            "synthetic": artifact.synthetic,
+                            "calibrated": artifact.calibration is not None,
+                            "promotion_allowed": False,
+                        }
+                    )
+                )
             else:
                 from tailwatch.sources.traces import parse_trace
 

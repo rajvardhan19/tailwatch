@@ -117,6 +117,28 @@ class EntityRepository:
             raise AmbiguousTicker("multiple securities match ticker, exchange, and date")
         return matches[0] if matches else None
 
+    def resolve_company(
+        self,
+        ticker: str,
+        exchange: str,
+        *,
+        source_id: str,
+        cutoff: datetime,
+        effective_at: datetime,
+    ) -> UUID | None:
+        """Issuer of the unique security using a ticker on that date, as known at cutoff."""
+        security = self.resolve_ticker(
+            ticker, exchange, source_id=source_id, cutoff=cutoff, effective_at=effective_at
+        )
+        return next(
+            (
+                history.company_id
+                for _, history in self.histories(source_id, cutoff, effective_at)
+                if isinstance(history, SecurityHistory) and history.entity_id == security
+            ),
+            None,
+        )
+
     def universe(
         self, *, source_id: str, cutoff: datetime, effective_at: datetime, sector: str
     ) -> tuple[str, bytes]:

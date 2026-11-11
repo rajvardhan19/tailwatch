@@ -82,7 +82,12 @@ def test_environment_flag_and_permissive_callback_cannot_bypass_real_release(dat
         def send(self, **kwargs):
             raise AssertionError("must never send")
 
-    assert deliver_one(database, External(), live_allowed=lambda _: True) == "cancelled"
+    from tailwatch.product.messages import LinkSigner
+
+    signer = LinkSigner("s" * 32, "https://tailwatch.example.invalid")
+    assert deliver_one(database, External(), live_allowed=lambda _: True, signer=signer) == (
+        "cancelled"
+    )
 
 
 def test_release_checks_deployed_config_tenant_and_kill(database, monkeypatch):

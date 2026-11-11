@@ -116,7 +116,14 @@ def test_reingestion_is_idempotent_and_changed_identity_fails(
     repo.append(item)
     repo.publish(item.snapshot_id, day(2))
     assert repo.capture(store, b"fixture-1") == item.digest
-    assert connection.execute(text("SELECT count(*) FROM evidence_facts")).scalar_one() == 1
+    # Scoped to this snapshot: other tests may have committed unrelated evidence.
+    assert (
+        connection.execute(
+            text("SELECT count(*) FROM evidence_facts WHERE snapshot_id=:id"),
+            {"id": item.snapshot_id},
+        ).scalar_one()
+        == 1
+    )
     with pytest.raises(ValueError, match="reused"):
         repo.append(Fact.model_validate(item.model_dump() | {"payload": {"office": "changed"}}))
     with pytest.raises(ValueError, match="cannot change"):
