@@ -1,9 +1,10 @@
 """ASGI entry point. Default preview is synthetic and needs no database."""
 
 import os
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import create_engine
@@ -24,6 +25,18 @@ app = (
     else FastAPI(title="Tailwatch synthetic preview")
 )
 app.mount("/assets", StaticFiles(directory=ASSETS), name="assets")
+
+
+@app.middleware("http")
+async def revalidate_assets(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    response = await call_next(request)
+    if request.url.path.startswith("/assets/"):
+        # Revalidate (cheap via ETag) so a dashboard fix is never served stale.
+        response.headers["Cache-Control"] = "no-cache"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 HEADERS = {

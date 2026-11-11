@@ -102,6 +102,8 @@ def test_operator_walkthrough_from_frozen_features_to_reviewed_delivery(
         "1",
         "--actor",
         "walkthrough",
+        "--visits",
+        str(tmp_path / "run.json"),
     )
     [episode] = drafted["drafted"]
 
@@ -121,7 +123,10 @@ def test_operator_walkthrough_from_frozen_features_to_reviewed_delivery(
     assert "Calibrated probability: unavailable" in sent
 
     # Customer views, track record and independently retained chain heads.
-    assert client.get(f"/alerts/{episode}", headers=customer).json()["public"]["synthetic"]
+    public = client.get(f"/alerts/{episode}", headers=customer).json()["public"]
+    assert public["synthetic"] and public["calibrated_probability"] is None
+    assert [v["destination"]["code"] for v in public["visits"]] == ["SYN-HBR"]
+    assert public["conditions"]["intensity"]["status"] == "insufficient_history"
     track = client.get("/track-record", headers=customer).json()["items"]
     assert [(i["episode_id"], i["outcome"]) for i in track] == [(episode, "pending")]
     retained = run(capsys, "checkpoint-alerts", "--objects", str(tmp_path / "independent"))

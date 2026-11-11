@@ -23,6 +23,7 @@ from tailwatch.features.runs import FeatureRun
 if TYPE_CHECKING:
     from tailwatch.product.delivery import Sender
     from tailwatch.product.messages import LinkSigner
+    from tailwatch.product.scoring import PublicVisit
 
 
 def add_commands(commands: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
@@ -41,6 +42,11 @@ def add_commands(commands: argparse._SubParsersAction) -> None:  # type: ignore[
         action="append",
         default=[],
         help="evidence ID whose external display rights were reviewed (repeatable)",
+    )
+    draft.add_argument(
+        "--visits",
+        type=Path,
+        help="completed-visit locations (JSON list, or an object with a 'visits' list)",
     )
 
     key = commands.add_parser("issue-key", help="issue an API key into an owner-only file")
@@ -99,6 +105,19 @@ def load_run(path: Path) -> FeatureRun:
     return FeatureRun.model_validate(data)
 
 
+def load_visits(path: Path | None) -> "tuple[PublicVisit, ...]":
+    from pydantic import TypeAdapter
+
+    from tailwatch.product.scoring import PublicVisit
+
+    if path is None:
+        return ()
+    data = json.loads(path.read_bytes())
+    if isinstance(data, dict):
+        data = data.get("visits", [])
+    return TypeAdapter(tuple[PublicVisit, ...]).validate_python(data)
+
+
 def execute(args: argparse.Namespace, parser: argparse.ArgumentParser) -> bool:
     handler = HANDLERS.get(args.command)
     if handler is None:
@@ -134,6 +153,7 @@ def _draft(engine: Engine, args: argparse.Namespace) -> dict[str, object]:
     score_digest = store.put(
         scoring_record(run, artifact, scored, threshold=args.threshold, budget=args.budget)
     )
+    visits = load_visits(args.visits)
     permitted = set(args.public_evidence)
     if run.synthetic:
         # Synthetic fixture references carry no third-party display rights question.
@@ -148,6 +168,7 @@ def _draft(engine: Engine, args: argparse.Namespace) -> dict[str, object]:
             actor=args.actor,
             public_evidence=frozenset(permitted),
             score_digest=score_digest,
+            visits=visits,
         )
     return {
         "run_hash": run.digest(),

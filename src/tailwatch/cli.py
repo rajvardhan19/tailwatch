@@ -210,7 +210,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "features", lambda _: json.dumps(research_demo(), sort_keys=True).encode()
                     ),
                 ),
-                code_revision=__version__ + ":research-demo-v1",
+                code_revision=__version__ + ":research-demo-v2",
                 configuration={},
                 synthetic=True,
                 health=lambda _: {"ready": True, "synthetic": True},

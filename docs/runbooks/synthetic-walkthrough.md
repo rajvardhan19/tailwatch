@@ -34,10 +34,11 @@ The operator file holds only the customer key. The verification link goes to the
 uv run --locked tailwatch fit-candidate config/research.synthetic.json --objects .data/objects --feature flight
 uv run --locked tailwatch research-demo > .data/run.json
 uv run --locked tailwatch draft-alerts --run .data/run.json --model-hash MODEL_HASH \
-  --objects .data/objects --tenant TENANT_ID --threshold 0 --budget 1 --actor you
+  --objects .data/objects --tenant TENANT_ID --threshold 0 --budget 1 --actor you \
+  --visits .data/run.json
 ```
 
-`fit-candidate` retains a canonical calibrated artifact and prints `promotion_allowed: false`. `draft-alerts` verifies the run and model commitments and scores every frozen direction. Missing inputs are counted as unscorable, never as zero. It retains the full scoring record and appends `draft` events only. Re-running inside the 180-day episode window reports `existing_episodes` instead of redrafting.
+`fit-candidate` retains a canonical calibrated artifact and prints `promotion_allowed: false`. `draft-alerts` verifies the run and model commitments and scores every frozen direction. Missing inputs are counted as unscorable, never as zero. It retains the full scoring record and appends `draft` events only. Re-running inside the 180-day episode window reports `existing_episodes` instead of redrafting. `--visits` supplies completed-visit locations; a location is kept only if its evidence ID is cleared for display, it matches the run's synthetic flag and it departed before the cutoff. Once approved, the signal appears on the dashboard globe after you connect with the customer key.
 
 ## 3. Human review
 

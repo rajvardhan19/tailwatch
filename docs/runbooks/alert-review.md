@@ -17,7 +17,7 @@ New alert hashes use a `v2:` prefix and bind the database event timestamp plus t
 - Keeps directions at or above the calibrated threshold, highest first, one direction per company pair, up to the alert budget.
 - Retains the complete scoring record and appends `draft` events only. An existing episode inside the 180-day window is reported, not redrafted.
 
-Draft public content shows only evidence IDs passed with `--public-evidence` after rights review (synthetic fixture references are exempt) and omits probabilities for synthetic runs. Real candidates without an active release can be drafted and reviewed in shadow mode, but customer routes and delivery still require the active release's exact model.
+Draft public content shows only evidence IDs passed with `--public-evidence` after rights review (synthetic fixture references are exempt) and omits probabilities for synthetic runs. It also records `conditions`: every frozen signal's availability state, value and contribution, so unavailable inputs stay visible rather than becoming zero. `visits` holds locations from `--visits` only for displayable, completed, pre-cutoff visits. Real candidates without an active release can be drafted and reviewed in shadow mode, but customer routes and delivery still require the active release's exact model.
 
 ## Independent checkpoints
 
