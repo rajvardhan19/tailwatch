@@ -6,7 +6,7 @@ from datetime import UTC, timedelta
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
-from sqlalchemy import Connection, text
+from sqlalchemy import Connection, Engine, text
 
 from tailwatch.sources.objects import ObjectStore
 
@@ -190,18 +190,80 @@ def verify_history(history: list[dict[str, Any]]) -> str:
     return previous
 
 
+def _checkpoint_body(tenant: UUID, episode: UUID, history: list[dict[str, Any]]) -> bytes:
+    head = verify_history(history)
+    return canonical(
+        {"tenant": str(tenant), "episode": str(episode), "sequence": len(history), "head": head}
+    )
+
+
 def checkpoint(
     conn: Connection, tenant: UUID, episode: UUID, independent_store: ObjectStore
 ) -> str:
     history = events(conn, tenant, episode)
     if not history:
         raise ValueError("cannot checkpoint an empty history")
-    head = verify_history(history)
-    return independent_store.put(
-        canonical(
-            {"tenant": str(tenant), "episode": str(episode), "sequence": len(history), "head": head}
-        )
+    return independent_store.put(_checkpoint_body(tenant, episode, history))
+
+
+def checkpoint_all(engine: Engine, independent_store: ObjectStore) -> dict[str, Any]:
+    """Retain a verified head for every chain plus a content-addressed manifest.
+
+    Store the manifest digest outside the database (e.g. operator log or backup
+    record); a database administrator could otherwise rewrite both together.
+    """
+    retained: dict[str, dict[str, str]] = {}
+    broken: list[str] = []
+    with engine.connect() as conn:
+        episodes = conn.execute(
+            text("SELECT tenant_id,episode_id FROM alert_episodes ORDER BY episode_id")
+        ).all()
+        for tenant, episode in episodes:
+            history = events(conn, tenant, episode)
+            if not history:
+                continue
+            try:
+                body = _checkpoint_body(tenant, episode, history)
+            except ValueError:
+                broken.append(str(episode))
+                continue
+            retained[str(episode)] = {
+                "tenant": str(tenant),
+                "checkpoint": independent_store.put(body),
+            }
+    manifest = independent_store.put(
+        canonical({"kind": "alert-checkpoints-v1", "episodes": retained})
     )
+    return {"manifest": manifest, "episodes": len(retained), "broken": broken}
+
+
+def verify_checkpoints(
+    engine: Engine, independent_store: ObjectStore, manifest: str
+) -> dict[str, Any]:
+    """Every retained head must still be a prefix of the current verified chain."""
+    retained = json.loads(independent_store.get(manifest))
+    if retained.get("kind") != "alert-checkpoints-v1" or not isinstance(
+        retained.get("episodes"), dict
+    ):
+        raise ValueError("not an alert checkpoint manifest")
+    mismatched: list[str] = []
+    with engine.connect() as conn:
+        for episode, item in sorted(retained["episodes"].items()):
+            try:
+                verify_checkpoint(
+                    conn,
+                    UUID(item["tenant"]),
+                    UUID(episode),
+                    independent_store,
+                    item["checkpoint"],
+                )
+            except (ValueError, KeyError, TypeError, OSError):
+                mismatched.append(episode)
+    return {
+        "manifest": manifest,
+        "verified": len(retained["episodes"]) - len(mismatched),
+        "mismatched": mismatched,
+    }
 
 
 def verify_checkpoint(
