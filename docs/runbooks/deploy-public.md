@@ -13,13 +13,13 @@ Run the server first, bound to `127.0.0.1` with `TAILWATCH_PUBLIC_VIEW=1`. The t
 
 ## Permanent free hosting (Render + Neon)
 
-1. **Database.** Create a free project at https://neon.com, then copy its connection string. Change the scheme to `postgresql+psycopg://`, and keep `?sslmode=require`. PostGIS is available on Neon; migration `0009` enables it.
-2. **Code.** Render deploys from GitHub. Merge the work into the branch Render should track, or point Render at the feature branch.
+1. **Database.** Create a free project at https://neon.com, then copy its connection string as given. `scripts/start.sh` switches `postgresql://` to the psycopg driver, and `?sslmode=require` is kept. PostGIS is available on Neon; migration `0009` enables it.
+2. **Code.** Render deploys from GitHub. `render.yaml` points the service at `feat/live-research-feeds`; change its `branch` after merging into `main`.
 3. **Web service.** At https://render.com, choose New → Blueprint and select this repository; `render.yaml` defines a free Docker web service. Fill in the secret variables when prompted:
    - `TAILWATCH_DATABASE_URL`: the Neon URL from step 1.
    - `TAILWATCH_SEC_USER_AGENT`: your name and contact email, as SEC fair access requires.
    - `TAILWATCH_PUBLIC_TENANT`: optional. It publishes one workspace's approved alerts. Create the workspace against the Neon database with `tailwatch provision-workspace` first.
-4. **First deploy.** `scripts/start.sh` applies the migrations, then serves on Render's port. Open the `onrender.com` address it shows.
+4. **First deploy.** `scripts/start.sh` applies the migrations, then serves on Render's port. The service is named `tailwatch-live`, so the address is https://tailwatch-live.onrender.com (Render adds a suffix only if that name is taken).
 
 Free-tier facts to keep in mind:
 - **Sleep:** Render's free services sleep after inactivity and take roughly a minute to wake. The live feeds then warm up over about 70 seconds.
